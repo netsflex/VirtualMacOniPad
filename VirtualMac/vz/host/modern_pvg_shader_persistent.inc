@@ -7,8 +7,11 @@ static const uint64_t persistentReserve = 2500ULL * 1000 * 1000;
 static const size_t persistentLibraryLimit = 2 * 1024 * 1024;
 static const size_t persistentRecordLimit = 16 * 1024;
 static const size_t persistentMetadataLimit = 16 * 1024;
-static const uint64_t persistentDiskLimit = 64 * 1024 * 1024;
-static const unsigned persistentEntryLimit = 512;
+static const uint64_t persistentDiskLimit = 1024ULL * 1024 * 1024;
+static const unsigned persistentEntryLimit = 8192;
+// Publication runs on a utility queue outside worker.lock; the quota scan is
+// linear in the entry count, so its budget grows with the entry limit.
+static const uint64_t persistentPublishBudget = 1000000000ULL;
 static char persistentProducerKey;
 
 // Fixture overrides exist only in the independent local CPU harness. They are
@@ -393,7 +396,7 @@ void VZModernRecordSuccessfulNativeLibrary(NSData *data,NSString *hash) {
         [data retain];[proof retain];retained=YES;
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0), ^{
             @autoreleasepool {
-                @try { uint64_t now=Now();if (now && now<=UINT64_MAX-100000000ULL) PersistentPublish(parent,data,proof,now+100000000ULL); }
+                @try { uint64_t now=Now();if (now && now<=UINT64_MAX-persistentPublishBudget) PersistentPublish(parent,data,proof,now+persistentPublishBudget); }
                 @catch (NSException *exception) { (void)exception; }
                 @finally { close(lock);close(parent);[proof release];[data release]; }
             }
