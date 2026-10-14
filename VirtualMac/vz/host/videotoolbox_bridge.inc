@@ -30,6 +30,11 @@ static const char vtBridgeFlag[] = "/var/root/VirtualMac2/diagnostics/videotoolb
 // flag selects that direct hand-back again, to investigate why.
 static const char vtBridgeDirectFlag[] = "/var/root/VirtualMac2/diagnostics/videotoolbox-bridge-direct";
 
+// Streams above 1080p stay with the guest's software decoder unless this flag
+// exists; a refused start lets VideoToolbox fall back to the next decoder.
+static const char vtBridgeLargeFlag[] = "/var/root/VirtualMac2/diagnostics/videotoolbox-bridge-4k";
+static const uint64_t vtBridgeMaxPixels = 1920ULL * 1088;
+
 // CMBaseObject and VTVideoDecoder class layouts (CoreMedia/VideoToolbox SPI).
 // On arm64e every member is signed with its own address-diversified
 // discriminator. The values are the ones the bundled framework's ten built-in
@@ -83,9 +88,8 @@ typedef struct {
 typedef struct {
     void *systemSession, *hostSession;
     BOOL copy, invalidating, failed;
-    unsigned index, frames, emitFailures, bufferCount;
+    unsigned index, frames, emitFailures;
     uint64_t emitNanoseconds, slowestEmit, copyNanoseconds;
-    void *buffers[32];  // distinct host pool buffers seen, to tell reuse from growth
 } VTBridgeDecoder;
 
 static struct {
@@ -96,6 +100,7 @@ static struct {
     int32_t (*setPixelBufferAttributes)(void *session, CFDictionaryRef);
     CFDictionaryRef (*destinationAttributes)(void *session);
     int32_t (*createPixelBuffer)(void *session, void *unused, void **pixelBufferOut);
+    void (*cleanUpAfterDecode)(void *session);
     // CoreMedia.
     int32_t (*derivedObjectCreate)(CFAllocatorRef, const void *vtable, void *classID, void **);
     void *(*derivedStorage)(void *);
@@ -201,11 +206,6 @@ static void vt_bridge_output(void *refcon, void *frame, int32_t status, uint32_t
     decoder->copyNanoseconds += copiedAt - began;
     decoder->emitNanoseconds += spent;
     if (spent > decoder->slowestEmit) decoder->slowestEmit = spent;
-    if (copied) {
-        unsigned i = 0;
-        while (i < decoder->bufferCount && decoder->buffers[i] != copied) ++i;
-        if (i == decoder->bufferCount && i < 32) decoder->buffers[decoder->bufferCount++] = copied;
-    }
     if (result) {
         if (++decoder->emitFailures >= 2) decoder->failed = YES;
         logf_("[VTBridge] session #%u emit frame %u copy=%d -> %d after %llu ms%s", decoder->index,
@@ -213,12 +213,19 @@ static void vt_bridge_output(void *refcon, void *frame, int32_t status, uint32_t
               decoder->failed ? "; guest is not acknowledging, bridge stops for this session" : "");
     } else decoder->emitFailures = 0;
     if (frames <= 2 || frames % 30 == 0)
-        logf_("[VTBridge] session #%u frames=%u poolBuffers=%u%s copy avg=%llu us emit avg=%llu us slowest=%llu ms",
-              decoder->index, frames, decoder->bufferCount, decoder->bufferCount == 32 ? "+" : "",
+        logf_("[VTBridge] session #%u frames=%u copy avg=%llu us emit avg=%llu us slowest=%llu ms",
+              decoder->index, frames,
               (unsigned long long)(decoder->copyNanoseconds / frames / 1000),
               (unsigned long long)(decoder->emitNanoseconds / frames / 1000),
               (unsigned long long)(decoder->slowestEmit / 1000000));
     if (copied) CFRelease(copied);
+    // In a paravirtualized session the destination buffers belong to the
+    // guest, which allocates one for every VTDecoderSessionCreatePixelBuffer.
+    // The session tells the guest which ones the host has let go of only from
+    // here, so a decoder that never calls this keeps every buffer of the
+    // session alive in the guest until teardown, and then sends one release
+    // batch large enough to overflow the guest's receive buffer.
+    if (vtBridge.cleanUpAfterDecode) vtBridge.cleanUpAfterDecode(decoder->hostSession);
 }
 
 static CFDictionaryRef vt_bridge_pixel_attributes(void *formatDescription) {
@@ -251,6 +258,14 @@ static int32_t vt_bridge_start(void *object, void *session, void *format) {
     VTBridgeDecoder *decoder = vtBridge.derivedStorage(object);
     if (!decoder) return -12902;
     decoder->hostSession = session;
+    uint64_t (*dimensionsOf)(void *) = dlsym(RTLD_DEFAULT, "CMVideoFormatDescriptionGetDimensions");
+    uint64_t packed = dimensionsOf ? dimensionsOf(format) : 0;
+    uint64_t pixels = (uint64_t)(uint32_t)packed * (uint32_t)(packed >> 32);
+    if (!pixels || (pixels > vtBridgeMaxPixels && access(vtBridgeLargeFlag, F_OK))) {
+        logf_("[VTBridge] refused %ux%u stream; the guest decodes it in software",
+              (uint32_t)packed, (uint32_t)(packed >> 32));
+        return -12910;
+    }
     decoder->copy = access(vtBridgeDirectFlag, F_OK) != 0;
     if (vtBridge.destinationAttributes)
         vt_bridge_describe("host session destination attributes",
@@ -310,8 +325,8 @@ static int32_t vt_bridge_supported_properties(void *object, CFDictionaryRef *out
 static int32_t vt_bridge_invalidate(void *object) {
     VTBridgeDecoder *decoder = vtBridge.derivedStorage(object);
     if (decoder && decoder->systemSession) {
-        logf_("[VTBridge] session #%u invalidate frames=%u poolBuffers=%u failed=%d", decoder->index,
-              decoder->frames, decoder->bufferCount, decoder->failed);
+        logf_("[VTBridge] session #%u invalidate frames=%u failed=%d", decoder->index,
+              decoder->frames, decoder->failed);
         __atomic_store_n(&decoder->invalidating, YES, __ATOMIC_RELEASE);
         // Blocks until pending output callbacks have run.
         vtBridge.sessionInvalidate(decoder->systemSession);
@@ -370,6 +385,7 @@ static void videotoolbox_bridge_install(void) {
     vtBridge.setPixelBufferAttributes = dlsym(bundled, "VTDecoderSessionSetPixelBufferAttributes");
     vtBridge.destinationAttributes = dlsym(bundled, "VTDecoderSessionGetDestinationPixelBufferAttributes");
     vtBridge.createPixelBuffer = dlsym(bundled, "VTDecoderSessionCreatePixelBuffer");
+    vtBridge.cleanUpAfterDecode = dlsym(bundled, "VTDecoderSessionCleanUpAfterDecode");
     vtBridge.derivedObjectCreate = dlsym(RTLD_DEFAULT, "CMDerivedObjectCreate");
     vtBridge.derivedStorage = dlsym(RTLD_DEFAULT, "CMBaseObjectGetDerivedStorage");
     vtBridge.sessionCreate = dlsym(system, "VTDecompressionSessionCreate");
