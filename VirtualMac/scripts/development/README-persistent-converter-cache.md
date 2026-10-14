@@ -16,26 +16,18 @@ bash scripts/development/build-modern-gputask-compat.sh \
 保存源码、两项依赖、SDK/clang/参数、实际平台与最低系统版本、产物 SHA256、
 CDHash、签名/dyld 验证及导出列表。新产物应单独审核，不能直接当成已测试版本。
 
-`persistent_cache_identity.h` 当前保留 2026-10-08 实机验证的 `2a4cc…` 收据
-pin，供该安装复现。对没有有效目标设备收据的新安装，构建副本中该 pin 必须
-默认为 64 个 `0`；原代码会关闭可选持久缓存。不要把本机 Mac 的 inode/stat
-数据或另一台设备的收据当成目标设备身份，也不要只凭二进制 SHA 相同复用收据。
+缓存按编译器集合划分，不再绑定单台设备。profile 目录名是源码内七项 compiler
+文件名、SHA256、CDHash、大小及 profile 哈希的 SHA256；更换 compiler 版本后表
+变化，旧条目不会被查到。启用前只做廉价检查：`compiler27` 为 root:wheel 0755，
+七项文件为 root:wheel 0755、单链接且大小与表一致。不再记录 inode、时间戳或
+st_dev，因此重装、重启和重新越狱后缓存继续有效，也不需要收据或逐设备重建 Task。
+这项检查不重新计算 124 MB compiler 的内容哈希；内容由安装脚本的 SHA256 核对
+负责，拥有 root 权限并换入等大小文件的情形不在防护范围内。
 
-新安装的正确顺序是先安装七个核验过的 compiler 文件及 profile，再在运行时
-停机后用只读 identity probe 获取完整 SHA256、before/after/currentPath 精确
-stat 和 complete 记录。接受 exit0、空 stderr、七项完整且稳定的结果后，使用
-对应版本的收据生成器保留完整 st_mode、mtime/ctime/birth 纳秒等身份字段；
-仅排除读取可以改变的 atime，不把 Task 源码 SHA 纳入 compiler 身份。
-对规范 JSON 的完整字节取 SHA256，生成与之匹配的 header，然后只重建 Task。
-
-可移植构建应在新的源码构建副本里生成 header；没有已核验收据时用零 pin，
-有收据时用其完整 SHA256。引号 include 会先选择 `.inc` 所在目录的 header，
-不能仅添加另一个 `-I` 路径便假定覆盖了项目中的 pin。保留原项目和冻结证据。
-部署时收据为 root:wheel 0444，`converter-cache-v1` 为 root:wheel 0755，
-其收据 SHA 命名的 profile 为 mobile:mobile 0700。保留原 Task 备份，Task 最后
-原子提交；回滚先恢复 Task，保留缓存和诊断数据。收据不应放入现有
-`--compiler-runtime` 目录：packager 只接受七项 code、profile 和 work，且其
-通用 code 权限过滤不能代替收据的 0444 权限。
+缓存位于 `/var/root/VirtualMac2/shader-cache/converter-v2/<compiler 集合哈希>`，
+由 mobile 的 GPU Task 首次使用时创建，权限 0700，无需安装脚本或手工部署。
+上限为 8192 项、1 GiB、单库 2 MiB；写入前的配额扫描与条目数成正比，发布预算
+为 1 秒并在 utility 队列执行，不占用 worker.lock。回滚只需恢复原 Task。
 
 原生 confstr 缓存有独立的 `native_pvg_cache_identity.h` scope。普通 Task
 重启、endpoint 或这次缓存代码调整不应生成新 scope；实际 native ABI 输入变化

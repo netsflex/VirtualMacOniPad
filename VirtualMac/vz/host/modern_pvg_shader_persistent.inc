@@ -1,7 +1,6 @@
 // Optional app-owned positive converter cache. Included after the unchanged
 // original ResultValidForInput. No Metal device/object/work or fake completion.
 #include <objc/runtime.h>
-#include "persistent_cache_identity.h"
 
 static const uint64_t persistentReserve = 2500ULL * 1000 * 1000;
 static const size_t persistentLibraryLimit = 2 * 1024 * 1024;
@@ -17,7 +16,7 @@ static char persistentProducerKey;
 // Fixture overrides exist only in the independent local CPU harness. They are
 // never used by the production build and do not attest device/root identity.
 #ifdef VZ_PVG_PERSISTENT_TESTING
-static NSString *persistentFixtureCompiler, *persistentFixtureReceiptDirectory;
+static NSString *persistentFixtureCompiler;
 static NSString *persistentFixtureParent, *persistentFixtureWork, *persistentFixtureHash;
 #endif
 static uid_t PersistentRootUID(void) {
@@ -34,13 +33,7 @@ static gid_t PersistentRootGID(void) {
     return 0;
 #endif
 }
-static NSString *PersistentReceiptHash(void) {
-#ifdef VZ_PVG_PERSISTENT_TESTING
-    return persistentFixtureHash;
-#else
-    return @VZ_PERSISTENT_RECEIPT_SHA256;
-#endif
-}
+static NSString *PersistentIdentityHash(void);
 static NSString *PersistentCompilerDirectory(void) {
 #ifdef VZ_PVG_PERSISTENT_TESTING
     return persistentFixtureCompiler;
@@ -48,18 +41,11 @@ static NSString *PersistentCompilerDirectory(void) {
     return [NSString stringWithUTF8String:codeDirectory];
 #endif
 }
-static NSString *PersistentReceiptDirectory(void) {
-#ifdef VZ_PVG_PERSISTENT_TESTING
-    return persistentFixtureReceiptDirectory;
-#else
-    return PersistentCompilerDirectory();
-#endif
-}
 static NSString *PersistentParent(void) {
 #ifdef VZ_PVG_PERSISTENT_TESTING
     return persistentFixtureParent;
 #else
-    return @"/var/root/VirtualMac2/converter-cache-v1";
+    return @"/var/root/VirtualMac2/shader-cache/converter-v2";
 #endif
 }
 static NSString *PersistentWork(void) {
@@ -71,10 +57,8 @@ static NSString *PersistentWork(void) {
 }
 static BOOL PersistentEnabled(void) {
     const char *role = getenv("VZ_PVG_TASK_ROLE"), *backend = getenv("VZ_PVG_BACKEND_VERSION");
-    NSString *hash = PersistentReceiptHash();
     return getuid() == 501 && geteuid() == 501 && role && !strcmp(role,"server") &&
-        backend && !strcmp(backend,"27") && HashString(hash) &&
-        ![hash isEqual:@"0000000000000000000000000000000000000000000000000000000000000000"];
+        backend && !strcmp(backend,"27");
 }
 static uint64_t PersistentOptionalDeadline(uint64_t runningDeadline, uint64_t cap) {
     uint64_t now = Now();
@@ -93,54 +77,6 @@ static int PersistentDirectory(NSString *path, uid_t owner, mode_t mode) {
         (value.st_mode & 07777) != mode) { close(fd); return -1; }
     return fd;
 }
-static NSData *PersistentReceiptBytes(int directory, uint64_t deadline) {
-    if (!Before(deadline)) return nil;
-    int fd = openat(directory,"persistent-cache-identity-v1.json",O_RDONLY|O_NOFOLLOW|O_NONBLOCK|O_CLOEXEC);
-    struct stat before,after;
-    if (fd < 0) return nil;
-    if (fstat(fd,&before) || !S_ISREG(before.st_mode) || before.st_uid != PersistentRootUID() || before.st_gid != PersistentRootGID() ||
-        (before.st_mode & 07777) != 0444 || before.st_nlink != 1 || before.st_size <= 0 ||
-        before.st_size > 65536) { close(fd); return nil; }
-    size_t length=(size_t)before.st_size,done=0;unsigned char *bytes=malloc(length);
-    if (!bytes) { close(fd); return nil; }
-    while (done<length && Before(deadline)) {
-        ssize_t count=read(fd,bytes+done,length-done);
-        if (count<0 && errno==EINTR) continue;
-        if (count<=0) break;
-        done+=(size_t)count;
-    }
-    unsigned char extra;ssize_t tail=done==length?read(fd,&extra,1):-1;
-    BOOL valid=tail==0 && !fstat(fd,&after) && SameStat(&before,&after) && Before(deadline);
-    close(fd);
-    if (!valid) { free(bytes);return nil; }
-    // This small receipt copy permits unambiguous cleanup even if NSData
-    // allocation throws; its original read buffer always has one owner.
-    @try { return [NSData dataWithBytes:bytes length:length]; }
-    @finally { free(bytes); }
-}
-static BOOL PersistentStatNumber(NSDictionary *row, NSString *key, uint64_t expected) {
-    uint64_t value;return Integer(row[key],&value) && value==expected;
-}
-static BOOL PersistentStatMatches(NSDictionary *row, struct stat value, uint64_t size) {
-    return [row isKindOfClass:[NSDictionary class]] && S_ISREG(value.st_mode) &&
-        value.st_uid==PersistentRootUID() && value.st_gid==PersistentRootGID() &&
-        (value.st_mode&07777)==0755 && value.st_nlink==1 && (uint64_t)value.st_size==size &&
-        PersistentStatNumber(row,@"dev",(uint64_t)value.st_dev) &&
-        PersistentStatNumber(row,@"ino",(uint64_t)value.st_ino) &&
-        PersistentStatNumber(row,@"size",(uint64_t)value.st_size) &&
-        PersistentStatNumber(row,@"uid",value.st_uid) && PersistentStatNumber(row,@"gid",value.st_gid) &&
-        PersistentStatNumber(row,@"nlink",value.st_nlink) && PersistentStatNumber(row,@"mode",value.st_mode) &&
-        PersistentStatNumber(row,@"flags",value.st_flags) && PersistentStatNumber(row,@"gen",value.st_gen) &&
-        PersistentStatNumber(row,@"rdev",(uint64_t)value.st_rdev) &&
-        PersistentStatNumber(row,@"blocks",(uint64_t)value.st_blocks) &&
-        PersistentStatNumber(row,@"blksize",(uint64_t)value.st_blksize) &&
-        PersistentStatNumber(row,@"mtimeSec",(uint64_t)value.st_mtimespec.tv_sec) &&
-        PersistentStatNumber(row,@"mtimeNsec",(uint64_t)value.st_mtimespec.tv_nsec) &&
-        PersistentStatNumber(row,@"ctimeSec",(uint64_t)value.st_ctimespec.tv_sec) &&
-        PersistentStatNumber(row,@"ctimeNsec",(uint64_t)value.st_ctimespec.tv_nsec) &&
-        PersistentStatNumber(row,@"birthSec",(uint64_t)value.st_birthtimespec.tv_sec) &&
-        PersistentStatNumber(row,@"birthNsec",(uint64_t)value.st_birthtimespec.tv_nsec);
-}
 static const struct { const char *name,*sha,*cd; uint64_t size; } persistentFiles[] = {
     {"VM27CompilerCompat.dylib","7e60029cb6a27f99dde2ba444403359618de9e7cc31276b72bb8fff4af5e2cb9","26b3426f4ae76bb4900dbe2d2724a4c2dd1123a6",51312},
     {"VM27GPUCompiler.dylib","5bf8d5ad9cc1f478e3557fb6c663a5735e183e28b097de8b6c56ff4aae511bfa","4ee95465f485ae6a5ed4fe7a9c08f49ba42e3cb7",259856},
@@ -150,48 +86,58 @@ static const struct { const char *name,*sha,*cd; uint64_t size; } persistentFile
     {"VM27llvm-lmdb.dylib","2e63f8f5506fc76c8091e2b2af2242492dd041221d095770a0603708aba647ae","a4a30fe433a4b6c34d480cd86c1186d8b6875d70",116288},
     {"metal-library-convert","92521f90f368cb7eb9c0d3b5abf3c3cf788f478954a3372651124e8db3a94311","6af8d4c000c4d42303adc01fb32869e4c4a15b54",70448}
 };
+static const char *const persistentProfileSHA = "6ec7684553365a759feb68f2820dd5fcc333d62ca2ccdae9daa7863d48672e59";
+// The profile directory is named after the compiled compiler set, so entries
+// produced by a different compiler release are never looked up. Nothing here
+// is captured per device: inode, timestamps and st_dev change across installs
+// and reboots, which silently disabled the cache everywhere but one iPad.
+static NSString *PersistentIdentityHash(void) {
+#ifdef VZ_PVG_PERSISTENT_TESTING
+    return persistentFixtureHash;
+#else
+    static NSString *identity;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableString *text=[NSMutableString stringWithFormat:@"converter-v2\n%s\n",persistentProfileSHA];
+        for (unsigned i=0;i<7;++i)
+            [text appendFormat:@"%s %s %s %llu\n",persistentFiles[i].name,persistentFiles[i].sha,persistentFiles[i].cd,
+                (unsigned long long)persistentFiles[i].size];
+        NSData *bytes=[text dataUsingEncoding:NSUTF8StringEncoding];
+        identity=[Hash(bytes.bytes,bytes.length) retain];
+    });
+    return identity;
+#endif
+}
 static BOOL PersistentVerifyIdentity(uint64_t deadline) {
-    if (!PersistentEnabled() || !Before(deadline)) return NO;
-    int receiptDir=PersistentDirectory(PersistentReceiptDirectory(),PersistentRootUID(),0755);
-    if (receiptDir<0) return NO;
-    NSData *bytes=nil;
-    @try { bytes=PersistentReceiptBytes(receiptDir,deadline); }
-    @finally { close(receiptDir); }
-    if (!bytes || !Before(deadline) || ![Hash(bytes.bytes,bytes.length) isEqual:PersistentReceiptHash()] || !Before(deadline)) return NO;
-    NSDictionary *receipt=[NSJSONSerialization JSONObjectWithData:bytes options:0 error:NULL];
-    uint64_t format;
-    if (!Before(deadline) || ![receipt isKindOfClass:[NSDictionary class]] ||
-        !Integer(receipt[@"formatVersion"],&format) || format!=1 ||
-        ![receipt[@"compilerProfileSHA256"] isEqual:@"6ec7684553365a759feb68f2820dd5fcc333d62ca2ccdae9daa7863d48672e59"] ||
-        ![receipt[@"compilerProfileFileSHA256"] isEqual:@"cd3846395ae7586c757a0e3de34b1770e97aa33aea529e01e8461710a2894601"] ||
-        !StrictBoolean(receipt[@"deviceSystemModified"],NO) ||
-        ![receipt[@"files"] isKindOfClass:[NSArray class]] || [receipt[@"files"] count]!=7) return NO;
+    if (!PersistentEnabled() || !HashString(PersistentIdentityHash()) || !Before(deadline)) return NO;
     int compilerDir=PersistentDirectory(PersistentCompilerDirectory(),PersistentRootUID(),0755);
     if (compilerDir<0) return NO;
     BOOL valid=YES;
-    @try {
     for (unsigned i=0;i<7 && valid;++i) {
-        NSDictionary *row=receipt[@"files"][i];uint64_t size;
-        if (!Before(deadline) || ![row isKindOfClass:[NSDictionary class]] ||
-            ![row[@"filename"] isEqual:[NSString stringWithUTF8String:persistentFiles[i].name]] ||
-            ![row[@"sha256"] isEqual:[NSString stringWithUTF8String:persistentFiles[i].sha]] ||
-            ![row[@"cdhash"] isEqual:[NSString stringWithUTF8String:persistentFiles[i].cd]] ||
-            !Integer(row[@"size"],&size) || size!=persistentFiles[i].size) { valid=NO;break; }
         int fd=openat(compilerDir,persistentFiles[i].name,O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);
         struct stat value;
-        @try { valid=fd>=0 && !fstat(fd,&value) && PersistentStatMatches(row[@"stat"],value,size) && Before(deadline); }
-        @finally { if (fd>=0) close(fd); }
+        valid=fd>=0 && !fstat(fd,&value) && S_ISREG(value.st_mode) &&
+            value.st_uid==PersistentRootUID() && value.st_gid==PersistentRootGID() &&
+            (value.st_mode&07777)==0755 && value.st_nlink==1 &&
+            (uint64_t)value.st_size==persistentFiles[i].size && Before(deadline);
+        if (fd>=0) close(fd);
     }
+    close(compilerDir);
     return valid && Before(deadline);
-    } @finally { close(compilerDir); }
 }
 static int PersistentOpen(uint64_t deadline) {
     if (!PersistentVerifyIdentity(deadline)) return -1;
-    int parent=PersistentDirectory(PersistentParent(),PersistentRootUID(),0755);
+    // shader-cache is the package's mobile-owned data directory; create the
+    // converter parent and this compiler set's profile there on first use.
+    if (mkdir(PersistentParent().fileSystemRepresentation,0700) && errno!=EEXIST) return -1;
+    int parent=PersistentDirectory(PersistentParent(),501,0700);
     if (parent<0) return -1;
     int fd=-1;
-    @try { fd=openat(parent,PersistentReceiptHash().UTF8String,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK); }
-    @finally { close(parent); }
+    @try {
+        const char *leaf=PersistentIdentityHash().UTF8String;
+        if (!mkdirat(parent,leaf,0700) || errno==EEXIST)
+            fd=openat(parent,leaf,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);
+    } @finally { close(parent); }
     struct stat value;
     if (fd<0) return -1;
     if (fstat(fd,&value) || !S_ISDIR(value.st_mode) || value.st_uid!=501 ||
@@ -230,7 +176,7 @@ static NSData *PersistentRead(int parent, NSString *hash, size_t size, Function 
     uint64_t format,inputBytes,outputBytes,type;
     if (!Before(deadline) || ![record isKindOfClass:[NSDictionary class]] || record.count!=10 ||
         !Integer(record[@"formatVersion"],&format) || format!=1 ||
-        ![record[@"receiptSHA256"] isEqual:PersistentReceiptHash()] || ![record[@"inputSHA256"] isEqual:hash] ||
+        ![record[@"compilerSetSHA256"] isEqual:PersistentIdentityHash()] || ![record[@"inputSHA256"] isEqual:hash] ||
         !Integer(record[@"inputBytes"],&inputBytes) || inputBytes!=size ||
         !Integer(record[@"outputBytes"],&outputBytes) || outputBytes!=data.length ||
         !Integer(record[@"inputFunctionType"],&type) || type!=function.type ||
@@ -256,9 +202,9 @@ static NSData *PersistentTryRead(NSString *hash,size_t size,Function function,ui
             static unsigned logged;
             uint64_t end=Now();
             if (begin && end>=begin && __sync_fetch_and_add(&logged,1)<32)
-                fprintf(stderr,"[ModernShaderPersistent] input=%s outcome=owned-data-hit stage=%s bytes=%zu elapsedNanoseconds=%llu receipt=%s\n",
+                fprintf(stderr,"[ModernShaderPersistent] input=%s outcome=owned-data-hit stage=%s bytes=%zu elapsedNanoseconds=%llu compilerSet=%s\n",
                     hash.UTF8String,cap==50000000ULL?"pre-lock":"post-lock",result.length,
-                    (unsigned long long)(end-begin),PersistentReceiptHash().UTF8String);
+                    (unsigned long long)(end-begin),PersistentIdentityHash().UTF8String);
         }
         return result;
     } @catch (NSException *exception) { (void)exception;return nil; }
@@ -334,7 +280,7 @@ static void PersistentPublish(int parent,NSData *data,NSDictionary *proof,uint64
     if (!ResultValidForInput(data,metadata,function,hash,(size_t)size,input,output) || !Before(deadline)) return;
     NSString *outputHash=Hash(data.bytes,data.length);if (!Before(deadline)) return;
     NSString *metadataHash=Hash(metadata.bytes,metadata.length);if (!Before(deadline)) return;
-    NSDictionary *record=@{@"formatVersion":@1,@"receiptSHA256":PersistentReceiptHash(),@"inputSHA256":hash,@"inputBytes":@(size),
+    NSDictionary *record=@{@"formatVersion":@1,@"compilerSetSHA256":PersistentIdentityHash(),@"inputSHA256":hash,@"inputBytes":@(size),
         @"inputFunctionType":@(type),@"inputFunctionBytesHex":FunctionHex(function),@"outputSHA256":outputHash,
         @"outputBytes":@(data.length),@"metadataSHA256":metadataHash,@"originalJobLeaf":leaf};
     NSData *recordBytes=[NSJSONSerialization dataWithJSONObject:record options:0 error:NULL];
@@ -361,13 +307,13 @@ static void PersistentPublish(int parent,NSData *data,NSDictionary *proof,uint64
         committed=renameat(parent,temporary.UTF8String,parent,hash.UTF8String)==0;
         if (committed) {
             // RAM hits share this NSData. Once it has been published, their
-            // native library loads need no repeated receipt checks or writes.
+            // native library loads need no repeated identity checks or writes.
             if (objc_getAssociatedObject(data,&persistentProducerKey)==proof)
                 objc_setAssociatedObject(data,&persistentProducerKey,nil,OBJC_ASSOCIATION_RETAIN);
             static unsigned published;
             if (__sync_fetch_and_add(&published,1)<16)
-                fprintf(stderr,"[ModernShaderPersistent] input=%s output=%s outcome=published bytes=%zu receipt=%s\n",
-                    hash.UTF8String,outputHash.UTF8String,data.length,PersistentReceiptHash().UTF8String);
+                fprintf(stderr,"[ModernShaderPersistent] input=%s output=%s outcome=published bytes=%zu compilerSet=%s\n",
+                    hash.UTF8String,outputHash.UTF8String,data.length,PersistentIdentityHash().UTF8String);
         }
     } @finally {
         if (child>=0) {
