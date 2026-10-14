@@ -302,6 +302,25 @@ static IMP originalFIFOQuiesce, originalFIFOResume, originalFaultEnqueue;
 static IMP originalInterrupt, originalReadFault, originalPause, originalReset;
 static IMP originalCrash, originalResetMap;
 
+// The pointer alone cannot be read after the fact. Record what the native
+// error says; nothing is retained and the error is forwarded unchanged.
+static void JournalNativeError(const char *source, uint64_t reference, id error) {
+    if (!error) return;
+    @try {
+        if (![error isKindOfClass:[NSError class]]) {
+            Journal(ObsFault, "source=%s reference=%" PRIu64 " nativeErrorClass=%s", source, reference,
+                    object_getClassName(error));
+            return;
+        }
+        NSString *info = [[(NSError *)error userInfo] description];
+        if (info.length > 420) info = [info substringToIndex:420];
+        info = [info stringByReplacingOccurrencesOfString:@"\n" withString:@" "];
+        Journal(ObsFault, "source=%s reference=%" PRIu64 " errorDomain=%s errorCode=%ld userInfo=%s",
+                source, reference, [(NSError *)error domain].UTF8String ?: "?",
+                (long)[(NSError *)error code], info.UTF8String ?: "?");
+    } @catch (id exception) { (void)exception; }
+}
+
 static void ObserveExec(id object, SEL sel, id data, uint32_t commands, uint32_t resources,
                         uint32_t index, uint64_t fifoValue, uint64_t token, id reply) {
     int entryErrno = errno;
@@ -414,6 +433,7 @@ static void ObserveClientExec(id object, SEL sel, uint32_t commands, id data,
                     "request=%" PRIu64 " object=%p task=%u fifoIndex=%u"
                     " status=%u nativeError=%p elapsedKnown=%u elapsedNS=%" PRIu64,
                     request, (void *)address, task, index, result, error, timed, elapsed);
+                if (result != 1) JournalNativeError("client-completion", request, error);
                 origReply(result, error);
             });
         } @catch (id exception) {
@@ -437,6 +457,7 @@ static void ObserveClientExec(id object, SEL sel, uint32_t commands, id data,
 static void ObserveToken(id object, SEL sel, uint64_t token, uint32_t result, id error) {
     Journal(result == 1 ? ObsToken : ObsTokenPriority, "delegate=%p token=%" PRIu64 " status=%u nativeError=%p",
         object, token, result, error);
+    if (result != 1) JournalNativeError("native-token-complete", token, error);
     ((void (*)(id, SEL, uint64_t, uint32_t, id))originalTokenComplete)(object, sel, token, result, error);
 }
 
