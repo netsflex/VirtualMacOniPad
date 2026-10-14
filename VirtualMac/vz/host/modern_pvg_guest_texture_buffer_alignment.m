@@ -1,5 +1,6 @@
 #import "modern_pvg_guest_texture_buffer_alignment.h"
 #import <Metal/Metal.h>
+#import <objc/message.h>
 #import <objc/runtime.h>
 #include <dlfcn.h>
 #include <errno.h>
@@ -60,7 +61,20 @@ static const char pvgVarPath[] = "/var/root/VirtualMac2/payload/Frameworks/Parav
 static const char pvgPrivatePath[] = "/private/var/root/VirtualMac2/payload/Frameworks/ParavirtualizedGraphics.framework/Versions/A/ParavirtualizedGraphics";
 static const char pvgVarRootPath[] = "/var/root/VirtualMac2/payload/Frameworks/ParavirtualizedGraphics.framework/ParavirtualizedGraphics";
 static const char pvgPrivateRootPath[] = "/private/var/root/VirtualMac2/payload/Frameworks/ParavirtualizedGraphics.framework/ParavirtualizedGraphics";
-static const char nativeAGXPath[] = "/System/Library/Extensions/AGXMetalG14G.bundle/AGXMetalG14G";
+// Device classes on which the native values were measured: the device reports
+// a 16 byte linear alignment while every probed color format needs 64 bytes
+// for a texture buffer. M2 was measured by the original author, M1 on an
+// iPad13,5 running 16.3.1. Each class is bound to its own driver image.
+static const struct { const char *className, *driverPath; } measuredDevices[] = {
+    {"AGXG14GDevice", "/System/Library/Extensions/AGXMetalG14G.bundle/AGXMetalG14G"},
+    {"AGXG13GDevice", "/System/Library/Extensions/AGXMetal13_3.bundle/AGXMetal13_3"},
+};
+static const char *MeasuredDriverPath(Class cls) {
+    const char *name = cls ? class_getName(cls) : NULL;
+    for (unsigned n = 0; name && n < sizeof(measuredDevices) / sizeof(measuredDevices[0]); ++n)
+        if (!strcmp(name, measuredDevices[n].className)) return measuredDevices[n].driverPath;
+    return NULL;
+}
 
 // Actual deployed PVG SHA6e1d9945180e8dcf57474b7ecd7bc42a49379e4101bb8db089a4433eae97c92d.
 // getDeviceInfo helper key40: BL e2d0 -> selector stub62d00, return PC e2d4.
@@ -330,7 +344,8 @@ __attribute__((noinline)) static NSUInteger ScopedDeviceMinimum(id device, SEL s
 
 static const M2Binding *PrepareM2Binding(id device) {
     Class cls=object_getClass(device);
-    if (!cls||strcmp(class_getName(cls),"AGXG14GDevice")) return NULL;
+    const char *nativeAGXPath=MeasuredDriverPath(cls);
+    if (!nativeAGXPath) return NULL;
     pthread_mutex_lock(&installationLock);
     if (__atomic_load_n(&bindingPublished,__ATOMIC_ACQUIRE)) {
         const M2Binding *result=cls==m2Binding.deviceClass&&__atomic_load_n(&m2Binding.usable,__ATOMIC_ACQUIRE)?&m2Binding:NULL;
@@ -366,9 +381,33 @@ static bool MeasureBufferRequirement(id device,const M2Binding *binding,NSUInteg
         if (!AlignmentValid(value)) return false;
         if (value>maximum) maximum=value;
     }
-    // Limit this policy to the actual observed M2 native public requirement.
+    // Limit this policy to the native public requirement observed on the measured devices.
     if (maximum!=64) return false;
     *requirement=maximum;return true;
+}
+// The scoped policy below is bound to the one device class it was measured
+// on. Report what any other class answers so its values can be compared.
+static void ReportUnboundDevice(id device) {
+    static unsigned reported;
+    if (!device||__sync_fetch_and_add(&reported,1)) return;
+    int savedErrno=errno;
+    @try {
+        SEL minimum=sel_registerName("deviceLinearTextureAlignmentBytes");
+        SEL publicBuffer=sel_registerName("minimumTextureBufferAlignmentForPixelFormat:");
+        SEL publicLinear=sel_registerName("minimumLinearTextureAlignmentForPixelFormat:");
+        char values[384];size_t used=0;values[0]=0;
+        for (unsigned n=0;n<sizeof(safeColorFormats)/sizeof(safeColorFormats[0]);++n) {
+            long long buffer=[device respondsToSelector:publicBuffer]?(long long)((NativeFormatGetter)objc_msgSend)(device,publicBuffer,safeColorFormats[n]):-1;
+            long long linear=[device respondsToSelector:publicLinear]?(long long)((NativeFormatGetter)objc_msgSend)(device,publicLinear,safeColorFormats[n]):-1;
+            int count=snprintf(values+used,sizeof(values)-used," %lu:%lld/%lld",(unsigned long)safeColorFormats[n],buffer,linear);
+            if (count<0||(size_t)count>=sizeof(values)-used) break;
+            used+=(size_t)count;
+        }
+        fprintf(stderr,"[ModernGuestTextureBufferAlignment] unbound device=%s deviceLinear=%lld format:textureBuffer/linear=%s\n",
+            object_getClassName(device),
+            [device respondsToSelector:minimum]?(long long)((NativeAlignmentGetter)objc_msgSend)(device,minimum):-1,values);
+    } @catch (NSException *exception) {(void)exception;}
+    errno=savedErrno;
 }
 static void ScopedDeviceInfo(id pgDevice,SEL selector,uint32_t maxKey,uint32_t capacity,uint32_t guestDst) {
     int entryErrno=errno;
@@ -380,6 +419,7 @@ static void ScopedDeviceInfo(id pgDevice,SEL selector,uint32_t maxKey,uint32_t c
             device=[originalMetalDevice(pgDevice,sel_registerName("mtlDevice")) retain];
             binding=PrepareM2Binding(device);
             if (binding) prepared=MeasureBufferRequirement(device,binding,&requirement);
+            else ReportUnboundDevice(device);
         }
     } @catch (NSException *exception) {(void)exception;prepared=false;}
     @finally {currentScope=previous;errno=entryErrno;}
