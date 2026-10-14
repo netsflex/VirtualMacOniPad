@@ -678,6 +678,86 @@ static BOOL Wait(VZModernShaderJob *job, uint64_t runningDeadline, uint64_t fina
     return NO;
 }
 
+// Rejected conversions fall back to the unconverted library without a trace,
+// and the job directory is removed. Record why, and keep a bounded number of
+// rejected inputs with the helper's log so the conversion can be replayed.
+static NSString *const rejectedDirectory = @"/var/root/VirtualMac2/shader-cache/rejected";
+static const unsigned rejectedLimit = 64;
+static const size_t rejectedInputLimit = 4 * 1024 * 1024;
+static __thread const char *rejectReason;
+static void Reject(const char *reason) { if (!rejectReason) rejectReason = reason; }
+
+static int RejectedEntry(NSString *hash, BOOL create) {
+    if (create && mkdir(rejectedDirectory.fileSystemRepresentation, 0700) && errno != EEXIST) return -1;
+    int parent = open(rejectedDirectory.fileSystemRepresentation,
+                      O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (parent < 0) return -1;
+    int entry = openat(parent, hash.UTF8String, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (entry < 0 && create) {
+        unsigned count = 0;
+        DIR *stream = DirectoryStream(parent);
+        if (stream) {
+            while (readdir(stream)) ++count;
+            closedir(stream);
+        }
+        // "." and ".." are counted; a full or unreadable directory keeps nothing new.
+        if (stream && count < rejectedLimit + 2 && !mkdirat(parent, hash.UTF8String, 0700))
+            entry = openat(parent, hash.UTF8String, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    }
+    close(parent);
+    return entry;
+}
+
+static void RejectedWrite(int entry, const char *name, const void *bytes, size_t size) {
+    int fd = openat(entry, name, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (fd < 0) return;
+    size_t offset = 0;
+    while (offset < size) {
+        ssize_t count = write(fd, (const unsigned char *)bytes + offset, size - offset);
+        if (count < 0 && errno == EINTR) continue;
+        if (count <= 0) break;
+        offset += (size_t)count;
+    }
+    close(fd);
+}
+
+// Copy the helper's own files out of a failed job before the job is removed.
+static void KeepRejectedJob(int directory, NSString *hash) {
+    uint64_t now = Now();
+    int entry = now ? RejectedEntry(hash, YES) : -1;
+    if (entry < 0) return;
+    static const char *const names[] = {"worker.log", "evidence.conversion.json", "output.metallib"};
+    for (unsigned i = 0; i < 3; ++i) {
+        NSData *data = ReadLimited(directory, names[i], rejectedInputLimit, now + 250000000ULL);
+        if (data) RejectedWrite(entry, names[i], data.bytes, data.length);
+    }
+    close(entry);
+}
+
+static void ReportRejected(const void *bytes, size_t size, NSString *hash, uint64_t start) {
+    Function function;
+    BOOL readable = ReadFunction(bytes, size, &function);
+    const char *reason = rejectReason ?: "unknown";
+    BOOL kept = NO;
+    if (size <= rejectedInputLimit) {
+        int entry = RejectedEntry(hash, YES);
+        if (entry >= 0) {
+            RejectedWrite(entry, "input.metallib", bytes, size);
+            RejectedWrite(entry, "reason.txt", reason, strlen(reason));
+            close(entry);
+            kept = YES;
+        }
+    }
+    static unsigned logged;
+    if (__sync_fetch_and_add(&logged, 1) >= 64) return;
+    uint64_t now = Now();
+    fprintf(stderr, "[ModernShaderWorker] rejected input=%s function=%.*s type=%d bytes=%zu "
+            "reason=%s elapsedMs=%llu kept=%d\n", hash.UTF8String,
+            readable ? (int)function.nameSize : 1, readable ? (const char *)function.name : "?",
+            readable ? function.type : -1, size, reason,
+            (unsigned long long)(now > start ? (now - start) / 1000000ULL : 0), kept);
+}
+
 static NSData *Convert(const void *bytes, size_t size, NSString *hash,
                        Function function, uint64_t deadline) {
     uint64_t runningDeadline = deadline - terminationReserve;
@@ -687,14 +767,17 @@ static NSData *Convert(const void *bytes, size_t size, NSString *hash,
     NSData *result = nil;
     @try {
     job->work = OpenWork();
-    if (job->work < 0) return nil;
+    if (job->work < 0) { Reject("work-directory-unavailable"); return nil; }
     job->coordination = Coordinate(job->work, runningDeadline, &job->fair);
-    if (job->coordination < 0 || !RoomForJob(job->work, runningDeadline) || !Before(runningDeadline)) return nil;
+    if (job->coordination < 0) { Reject("timed-out-waiting-for-worker-turn"); return nil; }
+    if (!RoomForJob(job->work, runningDeadline)) { Reject("work-directory-full"); return nil; }
+    if (!Before(runningDeadline)) { Reject("timed-out-before-spawn"); return nil; }
     persistent = PersistentTryRead(hash, size, function, runningDeadline, 20000000ULL);
     if (persistent) return persistent;
     char directory[PATH_MAX];
     int length = snprintf(directory, sizeof(directory), "%s/job-XXXXXX", workDirectory);
     if (length < 0 || (size_t)length >= sizeof(directory) || !mkdtemp(directory)) {
+        Reject("job-directory-create-failed");
         return nil;
     }
     strlcpy(job->name, strrchr(directory, '/') + 1, sizeof(job->name));
@@ -703,6 +786,7 @@ static NSData *Convert(const void *bytes, size_t size, NSString *hash,
     if (job->directory < 0 || fstat(job->directory, &value) || value.st_uid != geteuid() ||
         !S_ISDIR(value.st_mode) || (value.st_mode & 07777) != 0700 ||
         !WriteInput(job->directory, bytes, size, runningDeadline)) {
+        Reject("job-input-write-failed");
         return nil;
     }
     NSString *path = [NSString stringWithUTF8String:directory];
@@ -712,17 +796,24 @@ static NSData *Convert(const void *bytes, size_t size, NSString *hash,
     NSString *log = [path stringByAppendingPathComponent:@"worker.log"];
     int rc = Before(runningDeadline) ? Spawn(job, input.fileSystemRepresentation,
         output.fileSystemRepresentation, evidence.fileSystemRepresentation, log.fileSystemRepresentation) : ETIMEDOUT;
-    if (rc) return nil;
+    if (rc) { Reject("helper-spawn-failed"); return nil; }
     ObserveExit(job);
     BOOL exited = Wait(job, runningDeadline, deadline);
+    if (!exited) Reject(Before(runningDeadline) ? "helper-exited-with-failure" : "helper-timed-out");
+    else if (job->detached || !Before(deadline)) Reject("timed-out-after-helper");
+    else if (!DiskWithinBounds(job->directory)) Reject("job-directory-out-of-bounds");
     if (exited && !job->detached && Before(deadline) && DiskWithinBounds(job->directory)) {
         NSData *data = ReadLimited(job->directory, "output.metallib", libraryLimit, deadline);
         NSData *metadata = ReadLimited(job->directory, "evidence.conversion.json", metadataLimit, deadline);
-        if (data && metadata && ResultValidForInput(data, metadata, function, hash, size, input, output) && Before(deadline)) {
+        if (!data || !metadata) Reject("helper-output-missing");
+        else if (!ResultValidForInput(data, metadata, function, hash, size, input, output)) Reject("helper-output-failed-validation");
+        else if (!Before(deadline)) Reject("timed-out-during-validation");
+        else {
             result = data;
             PersistentAssociateProducer(data, metadata, hash, size, function, path);
         }
     }
+    if (!result && !job->detached) KeepRejectedJob(job->directory, hash);
     return result;
     } @finally {
         if (job->pid > 0 && !job->reaped && !job->detached)
@@ -779,9 +870,18 @@ NSData *VZModernConvertUnknownShader(const void *bytes, size_t size, NSString *i
     uint64_t deadline = start + callNanoseconds;
     NSString *key = [[inputHash copy] autorelease];
     Function function;
-    if (!ReadFunction(bytes, size, &function) ||
-        (PrivateAIRFunction(function) && !PrivateVertexFunction(function)) ||
-        ![Hash(bytes, size) isEqual:key] || !Before(deadline)) return nil;
+    rejectReason = NULL;
+    if (!ReadFunction(bytes, size, &function)) {
+        Reject("not-a-single-function-library");
+        ReportRejected(bytes, size, key, start);
+        return nil;
+    }
+    if (PrivateAIRFunction(function) && !PrivateVertexFunction(function)) {
+        Reject("unsupported-private-air-function");
+        ReportRejected(bytes, size, key, start);
+        return nil;
+    }
+    if (![Hash(bytes, size) isEqual:key] || !Before(deadline)) return nil;
     pthread_once(&initializeState, Initialize);
     pthread_mutex_lock(&stateLock);
     NSData *cached = [results[key] retain];
@@ -797,7 +897,9 @@ NSData *VZModernConvertUnknownShader(const void *bytes, size_t size, NSString *i
             pthread_cond_timedwait_relative_np(&stateChanged, &stateLock, &relative);
         }
         NSData *data = flight->complete && Before(deadline) ? [flight->result retain] : nil;
+        if (!data) Reject(flight->complete ? "shared-conversion-was-rejected" : "timed-out-waiting-for-shared-conversion");
         pthread_mutex_unlock(&stateLock);
+        if (!data) ReportRejected(bytes, size, key, start);
         [flight release]; return [data autorelease];
     }
     if (flights.count >= 128) { pthread_mutex_unlock(&stateLock); return nil; }
@@ -812,5 +914,6 @@ NSData *VZModernConvertUnknownShader(const void *bytes, size_t size, NSString *i
     }
     Publish(key, flight, data);
     [flight release];
+    if (!data) ReportRejected(bytes, size, key, start);
     return data;
 }
