@@ -27,7 +27,8 @@ xcrun --sdk iphoneos clang -arch arm64e \
     "$REPO_ROOT/vz/host/modern_pvg_shader_audit.m" \
     "$REPO_ROOT/vz/host/modern_pvg_fault_observation.m" \
     "$REPO_ROOT/vz/host/modern_pvg_texture_error_observation.m" \
-    "$REPO_ROOT/vz/host/modern_pvg_texture_preflight.m" -o "$LIBRARY"
+    "$REPO_ROOT/vz/host/modern_pvg_texture_preflight.m" \
+    "$REPO_ROOT/vz/host/modern_pvg_hang_diagnostics.m" -o "$LIBRARY"
 # Project compatibility entries must be defined here; dynamic lookup cannot supply them.
 nm -gU "$LIBRARY" | awk '
     BEGIN {

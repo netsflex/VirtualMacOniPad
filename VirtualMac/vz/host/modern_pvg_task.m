@@ -29,6 +29,7 @@
 #include "modern_pvg_linear_texture.h"
 #include "modern_pvg_texture_preflight.h"
 #include "modern_pvg_shader_cache.h"
+#include "modern_pvg_hang_diagnostics.h"
 #include "modern_pvg_shader_audit.h"
 #endif
 
@@ -557,6 +558,7 @@ __attribute__((constructor)) static void InstallTaskServerTransport(void) {
             VZModernInstallShaderCompatibilityCache(device);
             VZModernInstallShaderAudit(device);
             InstallTaskDiagnostics(device);
+            VZModernInstallHangDiagnostics(device);
         }
     }
 }
