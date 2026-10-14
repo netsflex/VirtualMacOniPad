@@ -24,6 +24,7 @@
 
 static const char *const codeDirectory = "/var/root/VirtualMac2/compiler27";
 static const char *const workerPath = "/var/root/VirtualMac2/compiler27/metal-library-convert";
+static const char *const normalizerPath = "/var/root/VirtualMac2/compiler27/vz-air-normalize";
 static const char *const compilerPath = "/var/root/VirtualMac2/compiler27/VM27GPUCompiler.dylib";
 static const char *const workDirectory = "/var/root/VirtualMac2/compiler27/work";
 static const size_t libraryLimit = 16 * 1024 * 1024;
@@ -268,6 +269,13 @@ static BOOL PrivateAIRFunction(Function function) {
         !memcmp(function.name, "air.", 4);
 }
 
+// A stage-in pipeline of any kind gets an Apple-generated vertex fetch entry.
+static BOOL FetchFunction(Function function) {
+    static const unsigned char name[] = "air.vertexFetchFunction";
+    return function.name && function.nameSize == sizeof(name) - 1 &&
+        !memcmp(function.name, name, sizeof(name) - 1);
+}
+
 static BOOL ResultValidPrivateVertex(NSData *data, NSData *metadata,
                                      Function inputFunction, NSString *inputHash,
                                      size_t inputSize, NSString *inputPath,
@@ -314,9 +322,52 @@ static BOOL ResultValidPrivateVertex(NSData *data, NSData *metadata,
         StrictBoolean(record[@"gpuWorkSubmitted"], NO);
 }
 
+// vz-air-normalize repairs a measured shape in the module text, then runs the
+// same Apple pass, verifiers and writer. Its evidence names what it changed.
+static const uint64_t normalizerVersion = 1;
+static BOOL ResultValidNormalized(NSData *data, NSData *metadata, Function inputFunction,
+                                  NSString *inputHash, size_t inputSize,
+                                  NSString *inputPath, NSString *outputPath) {
+    if (PrivateAIRFunction(inputFunction) && !FetchFunction(inputFunction)) return NO;
+    NSData *expected = FetchFunction(inputFunction)
+        ? [[@"vz_pvg_vertex_" stringByAppendingString:inputHash] dataUsingEncoding:NSUTF8StringEncoding]
+        : [NSData dataWithBytes:inputFunction.name length:inputFunction.nameSize];
+    Function output;
+    if (!HashString(inputHash) || !expected || !ReadFunction(data.bytes, data.length, &output) ||
+        output.type != inputFunction.type || output.nameSize != expected.length ||
+        memcmp(output.name, expected.bytes, expected.length)) return NO;
+    id record = [NSJSONSerialization JSONObjectWithData:metadata options:0 error:NULL];
+    if (![record isKindOfClass:[NSDictionary class]]) return NO;
+    uint64_t schema, version, inputBytes, outputBytes, type, converts, hidden;
+    if (!Integer(record[@"schema"], &schema) || schema != 3 ||
+        ![record[@"conversionMode"] isEqual:@"air-normalization"] ||
+        !Integer(record[@"normalizerVersion"], &version) || version != normalizerVersion ||
+        !Integer(record[@"inputBytes"], &inputBytes) || inputBytes != inputSize ||
+        !Integer(record[@"outputBytes"], &outputBytes) || outputBytes != data.length ||
+        !Integer(record[@"functionType"], &type) || type != output.type ||
+        ![record[@"inputSHA256"] isEqual:inputHash] ||
+        ![record[@"outputSHA256"] isEqual:Hash(data.bytes, data.length)] ||
+        ![record[@"compiler"] isEqual:[NSString stringWithUTF8String:compilerPath]] ||
+        ![record[@"input"] isEqual:inputPath] || ![record[@"output"] isEqual:outputPath] ||
+        ![record[@"inputFunctionBytesHex"] isEqual:FunctionHex(inputFunction)] ||
+        ![record[@"functionBytesHex"] isEqual:FunctionHex(output)] ||
+        !Integer(record[@"convertCallsRewritten"], &converts) ||
+        !Integer(record[@"hiddenBuffersNormalized"], &hidden) || (!converts && !hidden) ||
+        !StrictBoolean(record[@"entryRenamed"], FetchFunction(inputFunction)) ||
+        !SupportedTarget(record[@"afterTarget"]) || !SupportedVersions(record)) return NO;
+    for (NSString *key in @[@"appleDowngradeReturnedTrue", @"appleAIRVerifierAfter", @"appleLLVMVerifierAfter"])
+        if (!StrictBoolean(record[key], YES)) return NO;
+    return StrictBoolean(record[@"gpuWorkSubmitted"], NO);
+}
+
 static BOOL ResultValidForInput(NSData *data, NSData *metadata, Function inputFunction,
                                NSString *inputHash, size_t inputSize,
                                NSString *inputPath, NSString *outputPath) {
+    id record = metadata ? [NSJSONSerialization JSONObjectWithData:metadata options:0 error:NULL] : nil;
+    uint64_t schema;
+    if ([record isKindOfClass:[NSDictionary class]] && Integer(record[@"schema"], &schema) && schema == 3)
+        return ResultValidNormalized(data, metadata, inputFunction, inputHash, inputSize,
+                                     inputPath, outputPath);
     if (PrivateVertexFunction(inputFunction))
         return ResultValidPrivateVertex(data, metadata, inputFunction, inputHash,
                                         inputSize, inputPath, outputPath);
@@ -608,8 +659,8 @@ static BOOL WriteInput(int directory, const void *bytes, size_t size, uint64_t d
     return valid && Before(deadline);
 }
 
-static int Spawn(VZModernShaderJob *job, const char *input, const char *output,
-                 const char *evidence, const char *log) {
+static int Spawn(VZModernShaderJob *job, const char *helper, const char *input,
+                 const char *output, const char *evidence, const char *log) {
     posix_spawnattr_t attributes;
     posix_spawn_file_actions_t actions;
     int rc = posix_spawnattr_init(&attributes);
@@ -631,10 +682,10 @@ static int Spawn(VZModernShaderJob *job, const char *input, const char *output,
     ACTION(posix_spawn_file_actions_addopen(&actions, 1, log,
         O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600));
     ACTION(posix_spawn_file_actions_adddup2(&actions, 1, 2));
-    char *argv[] = {(char *)workerPath, (char *)compilerPath, (char *)input,
+    char *argv[] = {(char *)helper, (char *)compilerPath, (char *)input,
                     (char *)output, (char *)evidence, NULL};
     char *environment[] = {"LANG=C", "LC_ALL=C", "TMPDIR=/var/root/VirtualMac2/compiler27/work", NULL};
-    if (!rc) rc = posix_spawn(&job->pid, workerPath, &actions, &attributes, argv, environment);
+    if (!rc) rc = posix_spawn(&job->pid, helper, &actions, &attributes, argv, environment);
 #undef ACTION
     posix_spawn_file_actions_destroy(&actions);
     posix_spawnattr_destroy(&attributes);
@@ -729,14 +780,16 @@ static void RejectedWrite(int entry, const char *name, const void *bytes, size_t
 }
 
 // Copy the helper's own files out of a failed job before the job is removed.
-static void KeepRejectedJob(int directory, NSString *hash) {
+static void KeepRejectedJob(int directory, NSString *hash, const char *prefix) {
     uint64_t now = Now();
     int entry = now ? RejectedEntry(hash, YES) : -1;
     if (entry < 0) return;
     static const char *const names[] = {"worker.log", "evidence.conversion.json", "output.metallib"};
     for (unsigned i = 0; i < 3; ++i) {
         NSData *data = ReadLimited(directory, names[i], rejectedInputLimit, now + 250000000ULL);
-        if (data) RejectedWrite(entry, names[i], data.bytes, data.length);
+        char name[64];
+        snprintf(name, sizeof(name), "%s%s", prefix, names[i]);
+        if (data) RejectedWrite(entry, name, data.bytes, data.length);
     }
     close(entry);
 }
@@ -765,8 +818,8 @@ static void ReportRejected(const void *bytes, size_t size, NSString *hash, uint6
             (unsigned long long)(now > start ? (now - start) / 1000000ULL : 0), kept);
 }
 
-static NSData *Convert(const void *bytes, size_t size, NSString *hash,
-                       Function function, uint64_t deadline) {
+static NSData *ConvertWith(const char *helper, const char *keepPrefix, const void *bytes,
+                           size_t size, NSString *hash, Function function, uint64_t deadline) {
     uint64_t runningDeadline = deadline - terminationReserve;
     NSData *persistent = PersistentTryRead(hash, size, function, runningDeadline, 50000000ULL);
     if (persistent) return persistent;
@@ -801,7 +854,7 @@ static NSData *Convert(const void *bytes, size_t size, NSString *hash,
     NSString *output = [path stringByAppendingPathComponent:@"output.metallib"];
     NSString *evidence = [path stringByAppendingPathComponent:@"evidence"];
     NSString *log = [path stringByAppendingPathComponent:@"worker.log"];
-    int rc = Before(runningDeadline) ? Spawn(job, input.fileSystemRepresentation,
+    int rc = Before(runningDeadline) ? Spawn(job, helper, input.fileSystemRepresentation,
         output.fileSystemRepresentation, evidence.fileSystemRepresentation, log.fileSystemRepresentation) : ETIMEDOUT;
     if (rc) { Reject("helper-spawn-failed"); return nil; }
     ObserveExit(job);
@@ -820,7 +873,7 @@ static NSData *Convert(const void *bytes, size_t size, NSString *hash,
             PersistentAssociateProducer(data, metadata, hash, size, function, path);
         }
     }
-    if (!result && !job->detached) KeepRejectedJob(job->directory, hash);
+    if (!result && !job->detached) KeepRejectedJob(job->directory, hash, keepPrefix);
     return result;
     } @finally {
         if (job->pid > 0 && !job->reaped && !job->detached)
@@ -871,6 +924,20 @@ static void Publish(NSString *key, VZModernShaderFlight *flight, NSData *data) {
     pthread_mutex_unlock(&stateLock);
 }
 
+// Apple's helper converts almost everything as delivered. A few inputs fail its
+// pass or its private-entry rules; the normalizer repairs only those shapes.
+// The first reason is kept for the report if both fail.
+static NSData *Convert(const void *bytes, size_t size, NSString *hash,
+                       Function function, uint64_t deadline) {
+    NSData *data = nil;
+    if (!FetchFunction(function) || PrivateVertexFunction(function))
+        data = ConvertWith(workerPath, "", bytes, size, hash, function, deadline);
+    else
+        Reject("private-fetch-entry-needs-normalization");
+    if (data || !Before(deadline)) return data;
+    return ConvertWith(normalizerPath, "normalizer-", bytes, size, hash, function, deadline);
+}
+
 NSData *VZModernConvertUnknownShader(const void *bytes, size_t size, NSString *inputHash) {
     uint64_t start = Now();
     if (!start || !bytes || size < 88 || size > libraryLimit || !HashString(inputHash)) return nil;
@@ -883,7 +950,7 @@ NSData *VZModernConvertUnknownShader(const void *bytes, size_t size, NSString *i
         ReportRejected(bytes, size, key, start);
         return nil;
     }
-    if (PrivateAIRFunction(function) && !PrivateVertexFunction(function)) {
+    if (PrivateAIRFunction(function) && !FetchFunction(function)) {
         Reject("unsupported-private-air-function");
         ReportRejected(bytes, size, key, start);
         return nil;
