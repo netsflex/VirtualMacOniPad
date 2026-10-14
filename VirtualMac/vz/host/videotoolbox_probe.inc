@@ -177,7 +177,7 @@ _ip_vt_probe_block[] __attribute__((section("__DATA,__interpose"))) = {
 // /var/root/VirtualMac2/diagnostics/videotoolbox-profile exists.
 static const char vtProfileFlag[] = "/var/root/VirtualMac2/diagnostics/videotoolbox-profile";
 enum { vtProfileDepth = 24, vtProfileCapacity = 60000 };
-typedef struct { uint32_t thread; uint8_t depth; uintptr_t pc[vtProfileDepth]; } VTProfileSample;
+typedef struct { uint32_t thread; uint16_t index; uint8_t depth; uintptr_t pc[vtProfileDepth]; } VTProfileSample;
 static int vt_profile_running;
 
 static uintptr_t vt_profile_strip(uintptr_t pc) {
@@ -191,6 +191,63 @@ static uintptr_t vt_profile_strip(uintptr_t pc) {
 static int vt_profile_compare(const void *a, const void *b) {
     const uint64_t *x = a, *y = b;
     return x[1] < y[1] ? 1 : x[1] > y[1] ? -1 : 0;
+}
+
+// Name a code address as symbol, or as image+offset where the image is stripped.
+static void vt_profile_name(uintptr_t pc, char *out, size_t size) {
+    Dl_info information = {0};
+    if (!dladdr((void *)pc, &information)) { snprintf(out, size, "0x%lx", (unsigned long)pc); return; }
+    const char *image = information.dli_fname ? strrchr(information.dli_fname, '/') : NULL;
+    image = image ? image + 1 : "?";
+    if (information.dli_sname && strcmp(information.dli_sname, "<redacted>"))
+        snprintf(out, size, "%s %s", image, information.dli_sname);
+    else
+        snprintf(out, size, "%s+0x%lx", image, (unsigned long)(pc - (uintptr_t)information.dli_fbase));
+}
+
+// For the busiest threads, list the frames that appear in most of their
+// samples, by exact return address, so stripped code can be found in a
+// disassembly.
+static void vt_profile_report_threads(VTProfileSample *samples, unsigned count) {
+    enum { threadSlots = 128, frameSlots = 2048 };
+    static uint32_t threadCounts[threadSlots];
+    memset(threadCounts, 0, sizeof(threadCounts));
+    for (unsigned i = 0; i < count; ++i)
+        if (samples[i].index < threadSlots) ++threadCounts[samples[i].index];
+    for (int rank = 0; rank < 4; ++rank) {
+        unsigned best = 0;
+        for (unsigned t = 1; t < threadSlots; ++t) if (threadCounts[t] > threadCounts[best]) best = t;
+        if (!best || !threadCounts[best]) break;
+        unsigned total = threadCounts[best];
+        threadCounts[best] = 0;
+        char name[64] = "";
+        static uint64_t frames[frameSlots][2];
+        memset(frames, 0, sizeof(frames));
+        for (unsigned i = 0; i < count; ++i) {
+            if (samples[i].index != best) continue;
+            if (!name[0]) {
+                pthread_t pthread = pthread_from_mach_thread_np(samples[i].thread);
+                if (pthread) pthread_getname_np(pthread, name, sizeof(name));
+            }
+            for (unsigned d = 0; d < samples[i].depth; ++d) {
+                uintptr_t key = samples[i].pc[d];
+                for (unsigned probe = 0; probe < frameSlots; ++probe) {
+                    unsigned slot = (unsigned)((key >> 2) * 2654435761u + probe) % frameSlots;
+                    if (frames[slot][0] && frames[slot][0] != key) continue;
+                    frames[slot][0] = key;
+                    ++frames[slot][1];
+                    break;
+                }
+            }
+        }
+        qsort(frames, frameSlots, sizeof(frames[0]), vt_profile_compare);
+        logf_("[VTProfile] thread %u \"%s\" %u samples", best, name, total);
+        for (unsigned i = 0; i < 24 && frames[i][1]; ++i) {
+            char text[256];
+            vt_profile_name((uintptr_t)frames[i][0], text, sizeof(text));
+            logf_("[VTProfile]   %5.1f%% %s", 100.0 * frames[i][1] / total, text);
+        }
+    }
 }
 
 static void vt_profile_report(VTProfileSample *samples, unsigned count, unsigned ticks) {
@@ -224,6 +281,7 @@ static void vt_profile_report(VTProfileSample *samples, unsigned count, unsigned
             }
         }
     }
+    vt_profile_report_threads(samples, count);
     qsort(leaf, slots, sizeof(leaf[0]), vt_profile_compare);
     qsort(inclusive, slots, sizeof(inclusive[0]), vt_profile_compare);
     logf_("[VTProfile] %u on-CPU thread samples over %u ticks", count, ticks);
@@ -268,6 +326,7 @@ static void vt_profile_run(double seconds) {
                 KERN_SUCCESS) {
                 VTProfileSample *sample = &samples[count++];
                 sample->thread = thread;
+                sample->index = (uint16_t)(t + 1);
                 sample->pc[0] = vt_profile_strip(arm_thread_state64_get_pc(state));
                 sample->depth = 1;
                 uintptr_t lr = vt_profile_strip(arm_thread_state64_get_lr(state));
@@ -304,9 +363,26 @@ static void vt_profile_session_started(uint64_t pixels) {
                    dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{ vt_profile_run(4.0); });
 }
 
+// Profile the VMM for ten seconds whenever this file appears; it is removed
+// when the profile starts.
+static const char vtProfileNowFlag[] = "/var/root/VirtualMac2/diagnostics/vmm-profile-now";
+static void vt_profile_watch(void) {
+    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0,
+        dispatch_get_global_queue(QOS_CLASS_UTILITY, 0));
+    dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
+                              2 * NSEC_PER_SEC, NSEC_PER_SEC / 2);
+    dispatch_source_set_event_handler(timer, ^{
+        if (access(vtProfileNowFlag, F_OK) || unlink(vtProfileNowFlag) ||
+            __atomic_exchange_n(&vt_profile_running, 1, __ATOMIC_ACQ_REL)) return;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{ vt_profile_run(10.0); });
+    });
+    dispatch_resume(timer);
+}
+
 static void videotoolbox_probe_install(void) {
     vt_probe_enabled = access(vtProbeFlag, F_OK) == 0;
     if (!vt_probe_enabled) return;
+    vt_profile_watch();
     // Let Virtualization finish creating its devices before probing.
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_SEC),
                    dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{ vt_probe_run(); });

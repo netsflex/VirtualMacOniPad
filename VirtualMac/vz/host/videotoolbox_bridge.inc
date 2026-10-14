@@ -478,11 +478,14 @@ static void videotoolbox_bridge_install(void) {
         logf_("[VTBridge] not installed: a required symbol is missing or not distinct");
         return;
     }
-    // The codecs iPadOS 16 decodes in hardware on this class of device. Its
-    // VideoToolbox reports no hardware VP9 or AV1 decoder.
+    // The codecs iPadOS 16 decodes in hardware on this class of device. VP9 is
+    // reported only to a process entitled to select alternate video decoders,
+    // and, as with macOS's own VP9 decoder, has no capabilities property in
+    // the IORegistry. There is no AV1 decoder.
     static const struct { uint32_t codec; CFStringRef capabilities; } codecs[] = {
         {'avc1', CFSTR("IOAVDH264DecodeCapabilities")},
         {'hvc1', CFSTR("IOAVDHEVCDecodeCapabilities")},
+        {'vp09', NULL},
     };
     Boolean (*supported)(uint32_t) = dlsym(system, "VTIsHardwareDecodeSupported");
     int32_t rating = 1000000;
@@ -496,7 +499,8 @@ static void videotoolbox_bridge_install(void) {
         }
         const void *keys[] = {*hardwareKey, *awareKey, *ratingKey, *capabilitiesKey};
         const void *values[] = {kCFBooleanTrue, kCFBooleanTrue, ratingValue, codecs[i].capabilities};
-        CFDictionaryRef information = CFDictionaryCreate(NULL, keys, values, 4,
+        CFDictionaryRef information = CFDictionaryCreate(NULL, keys, values,
+            codecs[i].capabilities ? 4 : 3,
             &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
         int32_t status = vtBridge.registerDecoder(codec, information, vt_bridge_create);
         CFRelease(information);
