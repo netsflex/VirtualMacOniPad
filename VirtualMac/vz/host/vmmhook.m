@@ -350,6 +350,7 @@ static void logf_(const char *fmt, ...) {
 
 #include "btaudio_retry.inc"
 #include "videotoolbox_probe.inc"
+#include "videotoolbox_bridge.inc"
 
 static void log_address(const char *label, void *address) {
     Dl_info info = {0};
@@ -2953,6 +2954,7 @@ __attribute__((constructor)) static void hook_init(void) {
         start_health_timer();
     install_usb_hci_trace();
     btaudio_retry_install();
+    videotoolbox_bridge_install();
     videotoolbox_probe_install();
     // Optional debug delay: set VMMHOOK_DEBUG_SLEEP=N to give lldb time to attach
     // before the VMM accepts the host's connection (catch breakpoints in the open/hv path).
