@@ -25,9 +25,10 @@ __attribute__((visibility("default"))) Boolean FigRegistryItemRequiresMissingRos
 }
 
 static const char vtBridgeFlag[] = "/var/root/VirtualMac2/diagnostics/videotoolbox-bridge";
-// Second experiment: hand the guest a buffer from the host session's own pool
-// and copy the decoded planes into it, instead of the decoder's buffer.
-static const char vtBridgeCopyFlag[] = "/var/root/VirtualMac2/diagnostics/videotoolbox-bridge-copy";
+// Decoded planes are copied into a buffer from the host session's own pool:
+// handing back the decoder's buffer reaches the guest as an empty image. This
+// flag selects that direct hand-back again, to investigate why.
+static const char vtBridgeDirectFlag[] = "/var/root/VirtualMac2/diagnostics/videotoolbox-bridge-direct";
 
 // CMBaseObject and VTVideoDecoder class layouts (CoreMedia/VideoToolbox SPI).
 // On arm64e every member is signed with its own address-diversified
@@ -211,7 +212,7 @@ static int32_t vt_bridge_start(void *object, void *session, void *format) {
     VTBridgeDecoder *decoder = vtBridge.derivedStorage(object);
     if (!decoder) return -12902;
     decoder->hostSession = session;
-    decoder->copy = access(vtBridgeCopyFlag, F_OK) == 0;
+    decoder->copy = access(vtBridgeDirectFlag, F_OK) != 0;
     if (vtBridge.destinationAttributes)
         vt_bridge_describe("host session destination attributes",
                            vtBridge.destinationAttributes(session));
@@ -329,18 +330,31 @@ static void videotoolbox_bridge_install(void) {
     // hardware accelerated and paravirtualization aware, and not a wrapper.
     CFStringRef *hardwareKey = dlsym(bundled, "kVTVideoDecoder_IsHardwareAccelerated");
     CFStringRef *awareKey = dlsym(bundled, "kVTVideoDecoder_IsParavirtualizationAware");
+    // It also forwards two things the guest uses to choose a decoder. A
+    // registration without a rating gets 0, below the guest's software decoder,
+    // so an application that merely allows hardware never picks this one. The
+    // capabilities are read from the IORegistry property named here; iPadOS's
+    // AppleAVD publishes it under the same name as macOS.
+    CFStringRef *ratingKey = dlsym(bundled, "kVTVideoDecoderInfo_Rating");
+    CFStringRef *capabilitiesKey = dlsym(bundled, "kVTVideoDecoderInfo_IORegistryCapabilitiesKey");
     if (!vtBridge.registerDecoder || !vtBridge.decoderClassID || !vtBridge.emitFrame ||
         !vtBridge.derivedObjectCreate || !vtBridge.derivedStorage || !vtBridge.sessionCreate ||
         !vtBridge.sessionDecode || !vtBridge.sessionFinish || !vtBridge.sessionWait ||
         !vtBridge.sessionInvalidate || !hardwareKey || !*hardwareKey || !awareKey || !*awareKey ||
+        !ratingKey || !*ratingKey || !capabilitiesKey || !*capabilitiesKey ||
         (void *)vtBridge.sessionCreate == dlsym(bundled, "VTDecompressionSessionCreate")) {
         logf_("[VTBridge] not installed: a required symbol is missing or not distinct");
         return;
     }
-    const void *keys[] = {*hardwareKey, *awareKey}, *values[] = {kCFBooleanTrue, kCFBooleanTrue};
-    CFDictionaryRef information = CFDictionaryCreate(NULL, keys, values, 2,
+    int32_t rating = 1000000;
+    CFNumberRef ratingValue = CFNumberCreate(NULL, kCFNumberSInt32Type, &rating);
+    const void *keys[] = {*hardwareKey, *awareKey, *ratingKey, *capabilitiesKey};
+    const void *values[] = {kCFBooleanTrue, kCFBooleanTrue, ratingValue,
+                            CFSTR("IOAVDH264DecodeCapabilities")};
+    CFDictionaryRef information = CFDictionaryCreate(NULL, keys, values, 4,
         &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
     int32_t status = vtBridge.registerDecoder('avc1', information, vt_bridge_create);
     CFRelease(information);
+    CFRelease(ratingValue);
     logf_("[VTBridge] registered H.264 hardware bridge status=%d", status);
 }
