@@ -8,9 +8,14 @@ static const size_t persistentRecordLimit = 16 * 1024;
 static const size_t persistentMetadataLimit = 16 * 1024;
 static const uint64_t persistentDiskLimit = 1024ULL * 1024 * 1024;
 static const unsigned persistentEntryLimit = 8192;
-// Publication runs on a utility queue outside worker.lock; the quota scan is
-// linear in the entry count, so its budget grows with the entry limit.
+// Publication runs on a utility queue outside worker.lock. A full scan of the
+// profile, linear in the entry count, happens only when the usage tally is
+// missing or the cache is full, so its budget still grows with the limit.
 static const uint64_t persistentPublishBudget = 1000000000ULL;
+// A hit refreshes its entry's time at most this often; eviction removes the
+// entries unused for longest until the cache is back to 90% of either limit.
+static const time_t persistentTouchInterval = 3600;
+static const char persistentUsageName[] = "usage";
 static char persistentProducerKey;
 
 // Fixture overrides exist only in the independent local CPU harness. They are
@@ -188,6 +193,10 @@ static NSData *PersistentRead(int parent, NSString *hash, size_t size, Function 
     if (![Hash(metadata.bytes,metadata.length) isEqual:record[@"metadataSHA256"]] || !Before(deadline)) return nil;
     // Pass only our fixed derived work paths to the unchanged schema validators.
     if (!ResultValidForInput(data,metadata,function,hash,size,input,output) || !Before(deadline)) return nil;
+    // The entry directory's modification time is its last use.
+    struct timespec now;
+    if (!clock_gettime(CLOCK_REALTIME,&now) && now.tv_sec-directory.st_mtimespec.tv_sec>persistentTouchInterval)
+        utimensat(parent,hash.UTF8String,NULL,AT_SYMLINK_NOFOLLOW);
     return data; // Owned immutable NSData with malloc/freeWhenDone; never mmap.
 }
 static NSData *PersistentTryRead(NSString *hash,size_t size,Function function,uint64_t runningDeadline,uint64_t cap) {
@@ -222,31 +231,136 @@ static void PersistentAssociateProducer(NSData *data,NSData *metadata,NSString *
         objc_setAssociatedObject(data,&persistentProducerKey,proof,OBJC_ASSOCIATION_RETAIN);
     } @catch (NSException *exception) { (void)exception; }
 }
-static BOOL PersistentCapacity(int directory,size_t additional,uint64_t deadline) {
-    // A dup shares its readdir offset. Open "." so every quota scan starts at
-    // the beginning even when this FD has already been inspected.
+static unsigned PersistentEntryLimit(void) {
+    static unsigned limit;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        limit=persistentEntryLimit;
+        // Diagnostics only: a smaller limit, to exercise eviction.
+        FILE *file=fopen("/var/root/VirtualMac2/diagnostics/shader-cache-entry-limit","r");
+        unsigned value=0;
+        if (file) { if (fscanf(file,"%u",&value)==1 && value>=4 && value<limit) limit=value; fclose(file); }
+    });
+    return limit;
+}
+typedef struct { char name[65]; uint64_t bytes; struct timespec used; } PersistentEntry;
+static int PersistentEntryOlder(const void *a,const void *b) {
+    const struct timespec *x=&((const PersistentEntry *)a)->used,*y=&((const PersistentEntry *)b)->used;
+    return x->tv_sec!=y->tv_sec ? (x->tv_sec<y->tv_sec?-1:1) : (x->tv_nsec<y->tv_nsec?-1:x->tv_nsec>y->tv_nsec);
+}
+// Every entry of the profile with its size and last use. Anything that is not
+// a well-formed entry, other than the lock, the tally and unfinished
+// publications, fails the scan, which leaves the cache untouched.
+static BOOL PersistentScan(int directory,uint64_t deadline,PersistentEntry **entriesOut,unsigned *countOut,uint64_t *totalOut) {
+    // A dup shares its readdir offset. Open "." so every scan starts at the
+    // beginning even when this FD has already been inspected.
     int dupfd=openat(directory,".",O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if (dupfd<0) return NO;
     DIR *stream=fdopendir(dupfd);if (!stream) { close(dupfd);return NO; }
-    unsigned count=0;uint64_t total=0;BOOL valid=YES;struct dirent *entry;
+    unsigned count=0,capacity=0;uint64_t total=0;BOOL valid=YES;struct dirent *entry;
+    PersistentEntry *entries=NULL;
     @try {
     while (Before(deadline)) {
         errno=0;entry=readdir(stream);if (!entry) { if (errno) valid=NO;break; }
-        if (!strcmp(entry->d_name,".") || !strcmp(entry->d_name,"..") || !strcmp(entry->d_name,"publisher.lock")) continue;
+        if (!strcmp(entry->d_name,".") || !strcmp(entry->d_name,"..") || !strcmp(entry->d_name,"publisher.lock") ||
+            !strcmp(entry->d_name,persistentUsageName) || !strncmp(entry->d_name,".pending-",9) ||
+            !strncmp(entry->d_name,".usage-",7)) continue;
         NSString *name=[NSString stringWithUTF8String:entry->d_name];
-        if (!HashString(name) || ++count>=persistentEntryLimit) { valid=NO;break; }
+        if (!HashString(name) || count>=2*persistentEntryLimit) { valid=NO;break; }
         int child=openat(directory,entry->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);
-        struct stat value;
-        if (child<0 || fstat(child,&value) || !S_ISDIR(value.st_mode) || value.st_uid!=501 || (value.st_mode&07777)!=0700) valid=NO;
+        struct stat value,folder;
+        if (child<0 || fstat(child,&folder) || !S_ISDIR(folder.st_mode) || folder.st_uid!=501 || (folder.st_mode&07777)!=0700) valid=NO;
+        uint64_t bytes=0;
         static const char *const files[]={"output.metallib","helper.json","record.json"};
         for (unsigned i=0;child>=0 && valid && i<3;++i) {
             if (fstatat(child,files[i],&value,AT_SYMLINK_NOFOLLOW) || !S_ISREG(value.st_mode) || value.st_uid!=501 || value.st_nlink!=1 || (value.st_mode&07777)!=0600 || value.st_size<=0 || (uint64_t)value.st_size>persistentLibraryLimit) valid=NO;
-            else if ((uint64_t)value.st_size>persistentDiskLimit-total) valid=NO;
-            else total+=(uint64_t)value.st_size;
+            else bytes+=(uint64_t)value.st_size;
         }
         if (child>=0) close(child);if (!valid) break;
+        if (count==capacity) {
+            capacity=capacity?capacity*2:1024;
+            PersistentEntry *grown=realloc(entries,capacity*sizeof(*entries));
+            if (!grown) { valid=NO;break; }
+            entries=grown;
+        }
+        strlcpy(entries[count].name,entry->d_name,sizeof(entries[count].name));
+        entries[count].bytes=bytes;
+        entries[count].used=folder.st_mtimespec;
+        ++count;total+=bytes;
     }
-    return valid && Before(deadline) && additional<=persistentDiskLimit-total;
+    valid=valid && Before(deadline);
     } @finally { closedir(stream); }
+    if (!valid) { free(entries);return NO; }
+    *entriesOut=entries;*countOut=count;*totalOut=total;
+    return YES;
+}
+// The tally of entries and bytes, kept beside the entries. Only a publisher
+// holding publisher.lock reads or replaces it.
+static BOOL PersistentReadUsage(int directory,unsigned *count,uint64_t *total) {
+    int fd=openat(directory,persistentUsageName,O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);
+    if (fd<0) return NO;
+    char text[64]={0};
+    struct stat value;
+    ssize_t n=(!fstat(fd,&value) && S_ISREG(value.st_mode) && value.st_uid==501) ? read(fd,text,sizeof(text)-1) : -1;
+    close(fd);
+    unsigned long long entries=0,bytes=0;
+    if (n<=0 || sscanf(text,"%llu %llu",&entries,&bytes)!=2 || entries>2*persistentEntryLimit) return NO;
+    *count=(unsigned)entries;*total=bytes;
+    return YES;
+}
+static void PersistentWriteUsage(int directory,unsigned count,uint64_t total) {
+    char text[64];
+    int length=snprintf(text,sizeof(text),"%u %llu\n",count,(unsigned long long)total);
+    char temporary[32];
+    snprintf(temporary,sizeof(temporary),".usage-%d",getpid());
+    int fd=openat(directory,temporary,O_WRONLY|O_CREAT|O_TRUNC|O_NOFOLLOW|O_CLOEXEC,0600);
+    if (fd<0) return;
+    BOOL written=write(fd,text,(size_t)length)==length;
+    if (close(fd) || !written || renameat(directory,temporary,directory,persistentUsageName)) {
+        unlinkat(directory,temporary,0);
+        unlinkat(directory,persistentUsageName,0);
+    }
+}
+static void PersistentRemoveEntry(int directory,const char *name) {
+    int child=openat(directory,name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+    if (child>=0) {
+        unlinkat(child,"output.metallib",0);unlinkat(child,"helper.json",0);unlinkat(child,"record.json",0);
+        close(child);
+    }
+    unlinkat(directory,name,AT_REMOVEDIR);
+}
+// Make room for one more entry of the given size. The tally answers in the
+// common case; a full scan rebuilds it when it is missing and, when the cache
+// is full, removes the entries unused for longest first.
+static BOOL PersistentCapacity(int directory,size_t additional,uint64_t deadline,unsigned *countOut,uint64_t *totalOut) {
+    unsigned limit=PersistentEntryLimit(),count=0;uint64_t total=0;
+    if (additional>persistentDiskLimit) return NO;
+    if (PersistentReadUsage(directory,&count,&total) && count<limit-1 && additional<=persistentDiskLimit-total) {
+        *countOut=count;*totalOut=total;
+        return YES;
+    }
+    PersistentEntry *entries=NULL;
+    if (!PersistentScan(directory,deadline,&entries,&count,&total)) return NO;
+    unsigned removed=0;uint64_t freed=0;
+    if (count>=limit-1 || additional>persistentDiskLimit-total) {
+        uint64_t byteTarget=persistentDiskLimit/10*9;
+        unsigned countTarget=limit/10*9;
+        qsort(entries,count,sizeof(*entries),PersistentEntryOlder);
+        for (unsigned i=0;i<count && Before(deadline) &&
+             (count-removed>=countTarget || total-freed+additional>byteTarget);++i) {
+            PersistentRemoveEntry(directory,entries[i].name);
+            ++removed;freed+=entries[i].bytes;
+        }
+        count-=removed;total-=freed;
+    }
+    free(entries);
+    PersistentWriteUsage(directory,count,total);
+    static unsigned logged;
+    if (__sync_fetch_and_add(&logged,1)<16)
+        fprintf(stderr,"[ModernShaderPersistent] usage rebuilt entries=%u bytes=%llu evicted=%u freed=%llu limit=%u\n",
+            count,(unsigned long long)total,removed,(unsigned long long)freed,limit);
+    if (count>=limit-1 || additional>persistentDiskLimit-total || !Before(deadline)) return NO;
+    *countOut=count;*totalOut=total;
+    return YES;
 }
 static BOOL PersistentWrite(int directory,const char *name,NSData *data,uint64_t deadline) {
     if (!Before(deadline)) return NO;
@@ -284,8 +398,10 @@ static void PersistentPublish(int parent,NSData *data,NSDictionary *proof,uint64
         @"inputFunctionType":@(type),@"inputFunctionBytesHex":FunctionHex(function),@"outputSHA256":outputHash,
         @"outputBytes":@(data.length),@"metadataSHA256":metadataHash,@"originalJobLeaf":leaf};
     NSData *recordBytes=[NSJSONSerialization dataWithJSONObject:record options:0 error:NULL];
+    unsigned usageCount=0;uint64_t usageTotal=0;
+    size_t entryBytes=recordBytes ? data.length+metadata.length+recordBytes.length : 0;
     if (!recordBytes || recordBytes.length>persistentRecordLimit || !Before(deadline) ||
-        !PersistentCapacity(parent,data.length+metadata.length+recordBytes.length,deadline)) return;
+        !PersistentCapacity(parent,entryBytes,deadline,&usageCount,&usageTotal)) return;
     NSString *temporary=[@".pending-" stringByAppendingString:NSUUID.UUID.UUIDString];
     if (mkdirat(parent,temporary.UTF8String,0700)) return;
     int child=openat(parent,temporary.UTF8String,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
@@ -306,6 +422,7 @@ static void PersistentPublish(int parent,NSData *data,NSDictionary *proof,uint64
         if (!fstatat(parent,hash.UTF8String,&prior,AT_SYMLINK_NOFOLLOW) || errno!=ENOENT) return;
         committed=renameat(parent,temporary.UTF8String,parent,hash.UTF8String)==0;
         if (committed) {
+            PersistentWriteUsage(parent,usageCount+1,usageTotal+entryBytes);
             // RAM hits share this NSData. Once it has been published, their
             // native library loads need no repeated identity checks or writes.
             if (objc_getAssociatedObject(data,&persistentProducerKey)==proof)
