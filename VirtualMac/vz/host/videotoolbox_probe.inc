@@ -167,6 +167,143 @@ _ip_vt_probe_block[] __attribute__((section("__DATA,__interpose"))) = {
     {(const void *)vt_probe_block_length, (const void *)CMBlockBufferGetDataLength},
 };
 
+// On-CPU profile of the whole VMM, taken while the guest decodes a large
+// stream through the hardware bridge. Every few milliseconds each running
+// thread is suspended just long enough to copy its frame-pointer chain into a
+// preallocated buffer; symbols are resolved only after sampling has finished,
+// so no suspended thread can be holding a lock the sampler needs.
+//
+// Runs once per large session while
+// /var/root/VirtualMac2/diagnostics/videotoolbox-profile exists.
+static const char vtProfileFlag[] = "/var/root/VirtualMac2/diagnostics/videotoolbox-profile";
+enum { vtProfileDepth = 24, vtProfileCapacity = 60000 };
+typedef struct { uint32_t thread; uint8_t depth; uintptr_t pc[vtProfileDepth]; } VTProfileSample;
+static int vt_profile_running;
+
+static uintptr_t vt_profile_strip(uintptr_t pc) {
+#if __has_feature(ptrauth_calls)
+    return (uintptr_t)ptrauth_strip((void *)pc, ptrauth_key_return_address);
+#else
+    return pc;
+#endif
+}
+
+static int vt_profile_compare(const void *a, const void *b) {
+    const uint64_t *x = a, *y = b;
+    return x[1] < y[1] ? 1 : x[1] > y[1] ? -1 : 0;
+}
+
+static void vt_profile_report(VTProfileSample *samples, unsigned count, unsigned ticks) {
+    // Count, per function start address, the samples it is the leaf of and the
+    // samples it appears in at all (once per sample).
+    enum { slots = 4096 };
+    static uint64_t leaf[slots][2], inclusive[slots][2];
+    memset(leaf, 0, sizeof(leaf));
+    memset(inclusive, 0, sizeof(inclusive));
+    for (unsigned i = 0; i < count; ++i) {
+        uintptr_t seen[vtProfileDepth];
+        unsigned seenCount = 0;
+        for (unsigned d = 0; d < samples[i].depth; ++d) {
+            Dl_info information = {0};
+            uintptr_t pc = samples[i].pc[d], key = pc;
+            if (dladdr((void *)(d ? pc - 4 : pc), &information) && information.dli_saddr)
+                key = (uintptr_t)information.dli_saddr;
+            BOOL duplicate = NO;
+            for (unsigned k = 0; k < seenCount; ++k) if (seen[k] == key) duplicate = YES;
+            if (duplicate) continue;
+            seen[seenCount++] = key;
+            for (int table = d ? 1 : 0; table < 2; ++table) {
+                uint64_t (*bucket)[2] = table ? inclusive : leaf;
+                for (unsigned probe = 0; probe < slots; ++probe) {
+                    unsigned slot = (unsigned)((key >> 2) * 2654435761u + probe) % slots;
+                    if (bucket[slot][0] && bucket[slot][0] != key) continue;
+                    bucket[slot][0] = key;
+                    ++bucket[slot][1];
+                    break;
+                }
+            }
+        }
+    }
+    qsort(leaf, slots, sizeof(leaf[0]), vt_profile_compare);
+    qsort(inclusive, slots, sizeof(inclusive[0]), vt_profile_compare);
+    logf_("[VTProfile] %u on-CPU thread samples over %u ticks", count, ticks);
+    for (int table = 0; table < 2; ++table) {
+        uint64_t (*bucket)[2] = table ? inclusive : leaf;
+        for (unsigned i = 0; i < 40 && bucket[i][1]; ++i) {
+            Dl_info information = {0};
+            dladdr((void *)bucket[i][0], &information);
+            const char *image = information.dli_fname ? strrchr(information.dli_fname, '/') : NULL;
+            logf_("[VTProfile] %s %6llu %5.1f%% %s %s", table ? "incl" : "self",
+                  (unsigned long long)bucket[i][1], 100.0 * bucket[i][1] / (count ? count : 1),
+                  image ? image + 1 : "?", information.dli_sname ? information.dli_sname : "?");
+        }
+    }
+}
+
+static void vt_profile_run(double seconds) {
+    VTProfileSample *samples = calloc(vtProfileCapacity, sizeof(VTProfileSample));
+    if (!samples) { __atomic_store_n(&vt_profile_running, 0, __ATOMIC_RELEASE); return; }
+    unsigned count = 0, ticks = 0;
+    thread_act_t self = mach_thread_self();
+    uint64_t end = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) + (uint64_t)(seconds * 1e9);
+    while (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) < end && count < vtProfileCapacity) {
+        ++ticks;
+        thread_act_array_t threads = NULL;
+        mach_msg_type_number_t threadCount = 0;
+        if (task_threads(mach_task_self(), &threads, &threadCount) != KERN_SUCCESS) break;
+        for (mach_msg_type_number_t t = 0; t < threadCount; ++t) {
+            thread_act_t thread = threads[t];
+            if (thread == self || count >= vtProfileCapacity) goto next;
+            struct thread_basic_info basic;
+            mach_msg_type_number_t basicCount = THREAD_BASIC_INFO_COUNT;
+            if (thread_info(thread, THREAD_BASIC_INFO, (thread_info_t)&basic, &basicCount) ||
+                basic.run_state != TH_STATE_RUNNING) goto next;
+            pthread_t pthread = pthread_from_mach_thread_np(thread);
+            uintptr_t top = pthread ? (uintptr_t)pthread_get_stackaddr_np(pthread) : 0;
+            uintptr_t bottom = pthread ? top - pthread_get_stacksize_np(pthread) : 0;
+            if (thread_suspend(thread) != KERN_SUCCESS) goto next;
+            arm_thread_state64_t state;
+            mach_msg_type_number_t stateCount = ARM_THREAD_STATE64_COUNT;
+            if (thread_get_state(thread, ARM_THREAD_STATE64, (thread_state_t)&state, &stateCount) ==
+                KERN_SUCCESS) {
+                VTProfileSample *sample = &samples[count++];
+                sample->thread = thread;
+                sample->pc[0] = vt_profile_strip(arm_thread_state64_get_pc(state));
+                sample->depth = 1;
+                uintptr_t lr = vt_profile_strip(arm_thread_state64_get_lr(state));
+                if (lr && lr != sample->pc[0]) sample->pc[sample->depth++] = lr;
+                uintptr_t fp = arm_thread_state64_get_fp(state);
+                while (sample->depth < vtProfileDepth && top && fp >= bottom && fp + 16 <= top &&
+                       !(fp & 7)) {
+                    uintptr_t next = ((uintptr_t *)fp)[0], pc = vt_profile_strip(((uintptr_t *)fp)[1]);
+                    if (!pc) break;
+                    if (sample->depth != 2 || pc != sample->pc[1]) sample->pc[sample->depth++] = pc;
+                    if (next <= fp) break;
+                    fp = next;
+                }
+            }
+            thread_resume(thread);
+        next:
+            mach_port_deallocate(mach_task_self(), thread);
+        }
+        vm_deallocate(mach_task_self(), (vm_address_t)threads, threadCount * sizeof(thread_act_t));
+        usleep(2000);
+    }
+    mach_port_deallocate(mach_task_self(), self);
+    vt_profile_report(samples, count, ticks);
+    free(samples);
+    __atomic_store_n(&vt_profile_running, 0, __ATOMIC_RELEASE);
+}
+
+// Called when the bridge starts a session for a stream of the given size.
+static void vt_profile_session_started(uint64_t pixels) {
+    if (pixels <= 1920ULL * 1088 || access(vtProfileFlag, F_OK) ||
+        __atomic_exchange_n(&vt_profile_running, 1, __ATOMIC_ACQ_REL)) return;
+    // Skip the first second, in which the pools are still being filled.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC),
+                   dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{ vt_profile_run(4.0); });
+}
+
 static void videotoolbox_probe_install(void) {
     vt_probe_enabled = access(vtProbeFlag, F_OK) == 0;
     if (!vt_probe_enabled) return;

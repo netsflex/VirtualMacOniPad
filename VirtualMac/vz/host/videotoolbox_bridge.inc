@@ -30,10 +30,6 @@ static const char vtBridgeFlag[] = "/var/root/VirtualMac2/diagnostics/videotoolb
 // flag selects that direct hand-back again, to investigate why.
 static const char vtBridgeDirectFlag[] = "/var/root/VirtualMac2/diagnostics/videotoolbox-bridge-direct";
 
-// Streams above 1080p stay with the guest's software decoder unless this flag
-// exists; a refused start lets VideoToolbox fall back to the next decoder.
-static const char vtBridgeLargeFlag[] = "/var/root/VirtualMac2/diagnostics/videotoolbox-bridge-4k";
-static const uint64_t vtBridgeMaxPixels = 1920ULL * 1088;
 
 // CMBaseObject and VTVideoDecoder class layouts (CoreMedia/VideoToolbox SPI).
 // On arm64e every member is signed with its own address-diversified
@@ -87,8 +83,10 @@ typedef struct {
 // Per-decoder storage. hostSession is the bundled framework's decoder session.
 typedef struct {
     void *systemSession, *hostSession;
+    // The format the system session was created for or last accepted.
+    void *format;
     BOOL copy, invalidating, failed;
-    unsigned index, frames, emitFailures;
+    unsigned index, frames, emitFailures, copyFailures, formatChanges;
     uint64_t emitNanoseconds, slowestEmit, copyNanoseconds;
 } VTBridgeDecoder;
 
@@ -111,6 +109,7 @@ static struct {
     int32_t (*sessionFinish)(void *);
     int32_t (*sessionWait)(void *);
     void (*sessionInvalidate)(void *);
+    Boolean (*sessionCanAccept)(void *, void *format);
 } vtBridge;
 static unsigned vtBridgeSessions, vtBridgeFrames, vtBridgeErrors;
 
@@ -144,15 +143,17 @@ static void *vt_bridge_copy(VTBridgeDecoder *decoder, void *source, unsigned cou
         !vtBridge.createPixelBuffer) return NULL;
     void *target = NULL;
     int32_t status = vtBridge.createPixelBuffer(decoder->hostSession, NULL, &target);
+    (void)count;
     if (status || !target) {
-        if (count <= 4) logf_("[VTBridge] host pool buffer status=%d", status);
+        if (++decoder->copyFailures <= 4)
+            logf_("[VTBridge] session #%u host pool buffer status=%d", decoder->index, status);
         return NULL;
     }
     size_t planeCount = planes(source);
     if (formatOf(source) != formatOf(target) || planeCount != planes(target) || !planeCount) {
-        if (count <= 4)
-            logf_("[VTBridge] host pool buffer format 0x%x planes=%zu differs from decoded 0x%x planes=%zu",
-                  formatOf(target), planes(target), formatOf(source), planeCount);
+        if (++decoder->copyFailures <= 4)
+            logf_("[VTBridge] session #%u host pool buffer format 0x%x planes=%zu differs from decoded 0x%x planes=%zu",
+                  decoder->index, formatOf(target), planes(target), formatOf(source), planeCount);
         CFRelease(target);
         return NULL;
     }
@@ -194,6 +195,9 @@ static void vt_bridge_output(void *refcon, void *frame, int32_t status, uint32_t
         vtBridge.emitFrame(decoder->hostSession, frame, status ? status : -12911, infoFlags, NULL);
         return;
     }
+    if (decoder->frames < 3)
+        logf_("[VTBridge] session #%u output %u status=%d infoFlags=0x%x image=%p", decoder->index,
+              decoder->frames + 1, status, infoFlags, imageBuffer);
     uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     if (decoder->copy && imageBuffer && !status) {
         copied = vt_bridge_copy(decoder, imageBuffer, count);
@@ -254,6 +258,73 @@ static CFDictionaryRef vt_bridge_pixel_attributes(void *formatDescription) {
     return attributes;
 }
 
+// Create the system session for format and make it the decoder's current one.
+static int32_t vt_bridge_open(VTBridgeDecoder *decoder, void *format) {
+    const void *keys[] = {CFSTR("RequireHardwareAcceleratedVideoDecoder")};
+    const void *values[] = {kCFBooleanTrue};
+    CFDictionaryRef specification = CFDictionaryCreate(NULL, keys, values, 1,
+        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    CFDictionaryRef attributes = vt_bridge_pixel_attributes(format);
+    VTBridgeOutputRecord record = {vt_bridge_output, decoder};
+    void *created = NULL;
+    int32_t status = vtBridge.sessionCreate(NULL, format, specification, attributes, &record, &created);
+    if (!status && created) {
+        decoder->systemSession = created;
+        CFRetain(format);
+        if (decoder->format) CFRelease(decoder->format);
+        decoder->format = format;
+        if (attributes && vtBridge.setPixelBufferAttributes)
+            vtBridge.setPixelBufferAttributes(decoder->hostSession, attributes);
+    }
+    if (attributes) CFRelease(attributes);
+    CFRelease(specification);
+    return status;
+}
+
+// Streams may carry a new format description on any sample, as Safari's media
+// source playback does for HEVC from the first frame. A session refuses a
+// format it cannot accept with kVTFormatDescriptionChangeNotSupportedErr,
+// which the guest only sees as a broken decoder. Move to a session for the new
+// format once the current one has delivered everything it holds.
+static int32_t vt_bridge_follow_format(VTBridgeDecoder *decoder, void *sampleBuffer) {
+    static void *(*formatOf)(void *);
+    static Boolean (*equal)(void *, void *);
+    if (!formatOf) {
+        formatOf = dlsym(RTLD_DEFAULT, "CMSampleBufferGetFormatDescription");
+        equal = dlsym(RTLD_DEFAULT, "CMFormatDescriptionEqual");
+    }
+    void *format = formatOf ? formatOf(sampleBuffer) : NULL;
+    if (!format || format == decoder->format || !equal ||
+        (decoder->format && equal(format, decoder->format))) return 0;
+    unsigned change = ++decoder->formatChanges;
+    if (vtBridge.sessionCanAccept && vtBridge.sessionCanAccept(decoder->systemSession, format)) {
+        if (change <= 4)
+            logf_("[VTBridge] session #%u format change %u accepted by the system session",
+                  decoder->index, change);
+        CFRetain(format);
+        if (decoder->format) CFRelease(decoder->format);
+        decoder->format = format;
+        return 0;
+    }
+    if (change <= 2) {
+        vt_bridge_describe("format before change", decoder->format);
+        vt_bridge_describe("format after change", format);
+    }
+    void *previous = decoder->systemSession;
+    vtBridge.sessionFinish(previous);
+    vtBridge.sessionWait(previous);
+    decoder->systemSession = NULL;
+    int32_t status = vt_bridge_open(decoder, format);
+    if (status) decoder->systemSession = previous;
+    else {
+        vtBridge.sessionInvalidate(previous);
+        CFRelease(previous);
+    }
+    logf_("[VTBridge] session #%u format change %u needs a new system session -> %d",
+          decoder->index, change, status);
+    return status;
+}
+
 static int32_t vt_bridge_start(void *object, void *session, void *format) {
     VTBridgeDecoder *decoder = vtBridge.derivedStorage(object);
     if (!decoder) return -12902;
@@ -261,26 +332,15 @@ static int32_t vt_bridge_start(void *object, void *session, void *format) {
     uint64_t (*dimensionsOf)(void *) = dlsym(RTLD_DEFAULT, "CMVideoFormatDescriptionGetDimensions");
     uint64_t packed = dimensionsOf ? dimensionsOf(format) : 0;
     uint64_t pixels = (uint64_t)(uint32_t)packed * (uint32_t)(packed >> 32);
-    if (!pixels || (pixels > vtBridgeMaxPixels && access(vtBridgeLargeFlag, F_OK))) {
-        logf_("[VTBridge] refused %ux%u stream; the guest decodes it in software",
-              (uint32_t)packed, (uint32_t)(packed >> 32));
-        return -12910;
-    }
+    // A refused start lets VideoToolbox fall back to the guest's software decoder.
+    if (!pixels) return -12910;
     decoder->copy = access(vtBridgeDirectFlag, F_OK) != 0;
     if (vtBridge.destinationAttributes)
         vt_bridge_describe("host session destination attributes",
                            vtBridge.destinationAttributes(session));
-    const void *keys[] = {CFSTR("RequireHardwareAcceleratedVideoDecoder")};
-    const void *values[] = {kCFBooleanTrue};
-    CFDictionaryRef specification = CFDictionaryCreate(NULL, keys, values, 1,
-        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    CFDictionaryRef attributes = vt_bridge_pixel_attributes(format);
-    VTBridgeOutputRecord record = {vt_bridge_output, decoder};
-    int32_t status = vtBridge.sessionCreate(NULL, format, specification, attributes, &record,
-                                            &decoder->systemSession);
-    if (!status && attributes && vtBridge.setPixelBufferAttributes)
-        vtBridge.setPixelBufferAttributes(session, attributes);
+    int32_t status = vt_bridge_open(decoder, format);
     decoder->index = __sync_add_and_fetch(&vtBridgeSessions, 1);
+    if (!status) vt_profile_session_started(pixels);
     uint32_t (*subType)(void *) = dlsym(RTLD_DEFAULT, "CMFormatDescriptionGetMediaSubType");
     uint64_t (*dimensions)(void *) = dlsym(RTLD_DEFAULT, "CMVideoFormatDescriptionGetDimensions");
     uint32_t codec = subType ? subType(format) : 0;
@@ -288,8 +348,6 @@ static int32_t vt_bridge_start(void *object, void *session, void *format) {
     logf_("[VTBridge] session #%u start %c%c%c%c %ux%u status=%d copy=%d", decoder->index,
           codec >> 24, codec >> 16, codec >> 8, codec, (uint32_t)size, (uint32_t)(size >> 32),
           status, decoder->copy);
-    if (attributes) CFRelease(attributes);
-    CFRelease(specification);
     return status;
 }
 
@@ -298,6 +356,8 @@ static int32_t vt_bridge_decode(void *object, void *frame, void *sampleBuffer, u
     VTBridgeDecoder *decoder = vtBridge.derivedStorage(object);
     if (!decoder || !decoder->systemSession) return -12902;
     if (decoder->failed) return -12911;
+    int32_t changed = vt_bridge_follow_format(decoder, sampleBuffer);
+    if (changed) return changed;
     // The frame token travels as the system session's per-frame refcon and
     // comes back in vt_bridge_output, which emits it exactly once.
     return vtBridge.sessionDecode(decoder->systemSession, sampleBuffer, flags, frame, infoFlagsOut);
@@ -332,6 +392,10 @@ static int32_t vt_bridge_invalidate(void *object) {
         vtBridge.sessionInvalidate(decoder->systemSession);
         CFRelease(decoder->systemSession);
         decoder->systemSession = NULL;
+    }
+    if (decoder && decoder->format) {
+        CFRelease(decoder->format);
+        decoder->format = NULL;
     }
     return 0;
 }
@@ -393,6 +457,7 @@ static void videotoolbox_bridge_install(void) {
     vtBridge.sessionFinish = dlsym(system, "VTDecompressionSessionFinishDelayedFrames");
     vtBridge.sessionWait = dlsym(system, "VTDecompressionSessionWaitForAsynchronousFrames");
     vtBridge.sessionInvalidate = dlsym(system, "VTDecompressionSessionInvalidate");
+    vtBridge.sessionCanAccept = dlsym(system, "VTDecompressionSessionCanAcceptFormatDescription");
     // The host session offers the guest only decoders whose registration says
     // hardware accelerated and paravirtualization aware, and not a wrapper.
     CFStringRef *hardwareKey = dlsym(bundled, "kVTVideoDecoder_IsHardwareAccelerated");
