@@ -98,6 +98,13 @@ static BOOL Version(id value, uint32_t parts[3]) {
     return YES;
 }
 
+// Apple's downgrade pass maps a macOS library to macosx13.0 and a Mac Catalyst
+// library to the matching ios16.0-macabi; it never changes the platform.
+static BOOL SupportedTarget(id target) {
+    return [target isEqual:@"air64-apple-macosx13.0.0"] ||
+        [target isEqual:@"air64-apple-ios16.0.0-macabi"];
+}
+
 static BOOL SupportedVersions(NSDictionary *record) {
     uint32_t air[3], metal[3];
     return Version(record[@"afterAIR"], air) && air[0] == 2 && air[1] == 5 && !air[2] &&
@@ -233,7 +240,7 @@ static BOOL ResultValid(NSData *data, NSData *metadata, Function inputFunction,
         ![record[@"outputSHA256"] isEqual:Hash(data.bytes, data.length)] ||
         ![record[@"compiler"] isEqual:[NSString stringWithUTF8String:compilerPath]] ||
         ![record[@"input"] isEqual:inputPath] || ![record[@"output"] isEqual:outputPath] ||
-        ![record[@"afterTarget"] isEqual:@"air64-apple-macosx13.0.0"] || !SupportedVersions(record) ||
+        !SupportedTarget(record[@"afterTarget"]) || !SupportedVersions(record) ||
         ![record[@"function"] isKindOfClass:[NSString class]] || ![record[@"function"] length] ||
         ![record[@"functionBytesHex"] isEqual:FunctionHex(output)]) return NO;
     // The helper's JSON writer encodes each original NAME byte as Latin-1.
@@ -290,7 +297,7 @@ static BOOL ResultValidPrivateVertex(NSData *data, NSData *metadata,
         ![record[@"outputSHA256"] isEqual:Hash(data.bytes, data.length)] ||
         ![record[@"compiler"] isEqual:[NSString stringWithUTF8String:compilerPath]] ||
         ![record[@"input"] isEqual:inputPath] || ![record[@"output"] isEqual:outputPath] ||
-        ![record[@"afterTarget"] isEqual:@"air64-apple-macosx13.0.0"] ||
+        !SupportedTarget(record[@"afterTarget"]) ||
         !SupportedVersions(record)) return NO;
     for (NSString *key in @[@"appleDowngradeReturnedTrue", @"appleAIRVerifierAfter",
                             @"appleLLVMVerifierBeforeAndAfter", @"writerBitcodeDoubleVerified",

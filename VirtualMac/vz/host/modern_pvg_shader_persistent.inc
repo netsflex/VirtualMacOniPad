@@ -84,7 +84,7 @@ static const struct { const char *name,*sha,*cd; uint64_t size; } persistentFile
     {"VM27LLVM.dylib","2140410973ad9d048625f739626398b5972e16a033ce051d016bd2e4cfbf27bb","f9eade69cce3728d83c63f4e668651e185f136fd",106874736},
     {"VM27llvm-flatbuffers.dylib","4589ef19a9037f519580c9fb61b9d51c22a23b2b05b9305428e25e5528d640dd","8a3977a8530372c340c812ad192d39f62d0a7846",415088},
     {"VM27llvm-lmdb.dylib","2e63f8f5506fc76c8091e2b2af2242492dd041221d095770a0603708aba647ae","a4a30fe433a4b6c34d480cd86c1186d8b6875d70",116288},
-    {"metal-library-convert","92521f90f368cb7eb9c0d3b5abf3c3cf788f478954a3372651124e8db3a94311","6af8d4c000c4d42303adc01fb32869e4c4a15b54",70448}
+    {"metal-library-convert","3493a884fe631b3b7fbf990699acd026b92d323405f23e39ba0529d494060708","cd7b9238679d0435293166fefd93774529a4e370",70432}
 };
 static const char *const persistentProfileSHA = "6ec7684553365a759feb68f2820dd5fcc333d62ca2ccdae9daa7863d48672e59";
 // The profile directory is named after the compiled compiler set, so entries
