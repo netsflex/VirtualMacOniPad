@@ -30,6 +30,7 @@
 #include "modern_pvg_texture_preflight.h"
 #include "modern_pvg_shader_cache.h"
 #include "modern_pvg_hang_diagnostics.h"
+#include "modern_pvg_address_guard.h"
 #include "modern_pvg_shader_audit.h"
 #endif
 
@@ -424,6 +425,7 @@ static id ComputeDescriptor(id device, SEL selector, id descriptor,
     NSError **output = error ?: &local;
     id result = nativeComputeDescriptor(device, selector, descriptor, options, reflection, output);
     if (!result) LogPipelineError(descriptor, *output);
+    else VZModernMarkAddressPipeline(result, descriptor);
     return result;
 }
 
@@ -432,6 +434,7 @@ static id ComputeFunction(id device, SEL selector, id function, NSError **error)
     NSError **output = error ?: &local;
     id result = nativeComputeFunction(device, selector, function, output);
     if (!result) LogPipelineError(function, *output);
+    else VZModernMarkAddressPipeline(result, function);
     return result;
 }
 
@@ -443,6 +446,7 @@ static id RenderDescriptor(id device, SEL selector, id descriptor,
     NSError **output = error ?: &local;
     id result = nativeRenderDescriptor(device, selector, descriptor, options, reflection, output);
     if (!result) LogPipelineError(descriptor, *output);
+    else VZModernMarkAddressPipeline(result, descriptor);
     return result;
 }
 
@@ -451,6 +455,7 @@ static id RenderSimple(id device, SEL selector, id descriptor, NSError **error) 
     NSError **output = error ?: &local;
     id result = nativeRenderSimple(device, selector, descriptor, output);
     if (!result) LogPipelineError(descriptor, *output);
+    else VZModernMarkAddressPipeline(result, descriptor);
     return result;
 }
 
@@ -555,6 +560,7 @@ __attribute__((constructor)) static void InstallTaskServerTransport(void) {
             VZModernInstallLinearTextureCompatibility(device);
             (void)VZModernInstallTexturePreflightCallsiteBridge(device);
             VZModernInstallHeapCompatibility();
+            VZModernInstallAddressGuard(device);
             VZModernInstallShaderCompatibilityCache(device);
             VZModernInstallShaderAudit(device);
             InstallTaskDiagnostics(device);

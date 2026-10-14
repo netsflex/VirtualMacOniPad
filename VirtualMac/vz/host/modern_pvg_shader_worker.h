@@ -12,3 +12,9 @@ NSData *VZModernConvertUnknownShader(const void *bytes, size_t size,
 // No GPU work; any cache failure leaves the existing native result unchanged.
 void VZModernRecordSuccessfulNativeLibrary(NSData *converted,
                                           NSString *inputHash);
+
+// Whether a converted library's function dereferences a GPU address taken
+// from memory, typically through an argument buffer. Such an address was
+// written by the guest and is not valid on the iPadOS 16 host. Results are
+// kept per library hash in memory and under shader-cache/address-use.
+bool VZModernShaderUsesAddresses(NSData *library);

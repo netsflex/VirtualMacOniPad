@@ -13,6 +13,12 @@
 //
 // Usage: vz-air-normalize <VM27GPUCompiler.dylib> <input> <output> <evidence>
 // writes <output> and <evidence>.conversion.json and exits 0, or exits 1.
+//
+// vz-air-normalize --address-use <VM27GPUCompiler.dylib> <library> reports
+// whether the function loads a pointer from memory or makes one from an
+// integer. Such a shader dereferences a GPU address the guest wrote, typically
+// through an argument buffer; the iPadOS 16 host cannot place resources at
+// guest addresses, so those reads fault on the iPad GPU.
 #include <CommonCrypto/CommonDigest.h>
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -344,9 +350,42 @@ std::string JsonVersion(const std::vector<unsigned> &v) {
     return out + "]";
 }
 
+// Counts loads whose result is a pointer, and integer-to-pointer casts.
+void CountAddressUse(const std::string &text, unsigned &pointerLoads, unsigned &intToPtr) {
+    static const std::regex load(R"re(= load (?:volatile )?([^,]+), )re");
+    for (const std::string &line : Lines(text)) {
+        std::smatch m;
+        if (std::regex_search(line, m, load) && !m[1].str().empty() && m[1].str().back() == '*') ++pointerLoads;
+        if (line.find(" inttoptr ") != std::string::npos) ++intToPtr;
+    }
+}
+
+int AddressUse(const char *compiler, const char *path) {
+    std::string input;
+    Single function;
+    if (!ReadFile(path, input) || !ReadSingleFunction(input, function)) {
+        std::printf("input is not a single-function version-2 Metal library\n");
+        return 1;
+    }
+    Api api;
+    if (!LoadApi(compiler, api)) return 1;
+    void *context = api.ContextCreate();
+    void *module = nullptr;
+    void *bitcode = api.BufferCopy(function.air.data(), function.air.size(), "input");
+    int failed = api.ParseBitcode(context, bitcode, &module);
+    api.BufferDispose(bitcode);
+    if (failed || !module) { std::printf("Apple LLVM could not parse the input AIR\n"); return 1; }
+    unsigned pointerLoads = 0, intToPtr = 0;
+    CountAddressUse(Text(api, module), pointerLoads, intToPtr);
+    std::printf("function=%s address-use=%d pointerLoads=%u intToPtr=%u\n", function.name.c_str(),
+                pointerLoads || intToPtr, pointerLoads, intToPtr);
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
+    if (argc == 4 && !std::strcmp(argv[1], "--address-use")) return AddressUse(argv[2], argv[3]);
     if (argc != 5) { std::printf("usage: %s compiler input output evidence\n", argv[0]); return 1; }
     const char *compiler = argv[1], *inputPath = argv[2], *outputPath = argv[3];
     std::string evidencePath = std::string(argv[4]) + ".conversion.json";

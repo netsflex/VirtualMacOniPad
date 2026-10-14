@@ -991,3 +991,111 @@ NSData *VZModernConvertUnknownShader(const void *bytes, size_t size, NSString *i
     if (!data) ReportRejected(bytes, size, key, start);
     return data;
 }
+
+// Address-use analysis. Only libraries that declare argument buffers with
+// indirect arguments can hold a guest address, so others are not analyzed.
+static NSString *const addressDirectory = @"/var/root/VirtualMac2/shader-cache/address-use";
+static const uint64_t addressNanoseconds = 2000ULL * 1000 * 1000;
+static NSMutableDictionary *addressResults;
+static pthread_mutex_t addressLock = PTHREAD_MUTEX_INITIALIZER;
+
+static int AddressDirectory(void) {
+    if (mkdir(addressDirectory.fileSystemRepresentation, 0700) && errno != EEXIST) return -1;
+    int fd = open(addressDirectory.fileSystemRepresentation, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    struct stat value;
+    if (fd >= 0 && (fstat(fd, &value) || value.st_uid != geteuid() || (value.st_mode & 0777) != 0700)) {
+        close(fd);
+        return -1;
+    }
+    return fd;
+}
+
+// 0 or 1 from an earlier analysis, -1 when unknown.
+static int StoredAddressUse(int directory, NSString *hash) {
+    NSData *data = ReadLimited(directory, hash.UTF8String, 4, Now() + 50000000ULL);
+    if (data.length == 2 && ((const char *)data.bytes)[1] == '\n') {
+        char value = ((const char *)data.bytes)[0];
+        if (value == '0' || value == '1') return value - '0';
+    }
+    return -1;
+}
+
+static void StoreAddressUse(int directory, NSString *hash, BOOL uses) {
+    char name[96];
+    snprintf(name, sizeof(name), ".%s.%d", hash.UTF8String, getpid());
+    int fd = openat(directory, name, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (fd < 0) return;
+    BOOL written = write(fd, uses ? "1\n" : "0\n", 2) == 2;
+    if (close(fd) || !written || renameat(directory, name, directory, hash.UTF8String)) unlinkat(directory, name, 0);
+}
+
+// Runs vz-air-normalize --address-use on the library; -1 when it cannot say.
+static int AnalyzeAddressUse(int directory, NSString *hash, NSData *library) {
+    char input[96], log[96];
+    snprintf(input, sizeof(input), ".%s.%d.metallib", hash.UTF8String, getpid());
+    snprintf(log, sizeof(log), ".%s.%d.log", hash.UTF8String, getpid());
+    int result = -1;
+    int fd = openat(directory, input, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (fd < 0) return -1;
+    BOOL written = write(fd, library.bytes, library.length) == (ssize_t)library.length;
+    if (close(fd) || !written) { unlinkat(directory, input, 0); return -1; }
+    NSString *inputPath = [addressDirectory stringByAppendingPathComponent:@(input)];
+    NSString *logPath = [addressDirectory stringByAppendingPathComponent:@(log)];
+    posix_spawn_file_actions_t actions;
+    posix_spawnattr_t attributes;
+    posix_spawn_file_actions_init(&actions);
+    posix_spawnattr_init(&attributes);
+    posix_spawnattr_setflags(&attributes, POSIX_SPAWN_CLOEXEC_DEFAULT);
+    posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0);
+    posix_spawn_file_actions_addopen(&actions, 1, logPath.fileSystemRepresentation,
+                                     O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+    posix_spawn_file_actions_adddup2(&actions, 1, 2);
+    char *argv[] = {(char *)normalizerPath, "--address-use", (char *)compilerPath,
+                    (char *)inputPath.fileSystemRepresentation, NULL};
+    char *environment[] = {"LANG=C", "LC_ALL=C", "TMPDIR=/var/root/VirtualMac2/shader-cache/address-use", NULL};
+    pid_t pid = -1;
+    int rc = posix_spawn(&pid, normalizerPath, &actions, &attributes, argv, environment);
+    posix_spawn_file_actions_destroy(&actions);
+    posix_spawnattr_destroy(&attributes);
+    if (!rc) {
+        uint64_t deadline = Now() + addressNanoseconds;
+        int status = 0;
+        pid_t waited = 0;
+        while (!(waited = waitpid(pid, &status, WNOHANG)) && Before(deadline)) Pause(deadline);
+        if (!waited) { kill(pid, SIGKILL); waitpid(pid, &status, 0); }
+        else if (waited == pid && WIFEXITED(status) && !WEXITSTATUS(status)) {
+            NSData *output = ReadLimited(directory, log, 4096, Now() + 50000000ULL);
+            NSString *text = output ? [[[NSString alloc] initWithData:output encoding:NSUTF8StringEncoding] autorelease] : nil;
+            if ([text containsString:@" address-use=1 "]) result = 1;
+            else if ([text containsString:@" address-use=0 "]) result = 0;
+        }
+    }
+    unlinkat(directory, input, 0);
+    unlinkat(directory, log, 0);
+    return result;
+}
+
+bool VZModernShaderUsesAddresses(NSData *library) {
+    static const char marker[] = "air.indirect_argument";
+    if (library.length < 88 || library.length > libraryLimit ||
+        !memmem(library.bytes, library.length, marker, sizeof(marker) - 1)) return false;
+    NSString *hash = Hash(library.bytes, library.length);
+    pthread_mutex_lock(&addressLock);
+    if (!addressResults) addressResults = [[NSMutableDictionary alloc] init];
+    NSNumber *known = [[addressResults[hash] retain] autorelease];
+    pthread_mutex_unlock(&addressLock);
+    if (known) return known.boolValue;
+    int directory = AddressDirectory();
+    if (directory < 0) return false;
+    int uses = StoredAddressUse(directory, hash);
+    if (uses < 0) {
+        uses = AnalyzeAddressUse(directory, hash, library);
+        if (uses >= 0) StoreAddressUse(directory, hash, uses);
+    }
+    close(directory);
+    if (uses < 0) return false;
+    pthread_mutex_lock(&addressLock);
+    addressResults[hash] = @(uses == 1);
+    pthread_mutex_unlock(&addressLock);
+    return uses == 1;
+}

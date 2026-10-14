@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include "modern_pvg_shader_cache.h"
 #include "modern_pvg_shader_worker.h"
+#include "modern_pvg_address_guard.h"
 
 static NSString *const cacheDirectory = @"/var/root/VirtualMac2/shader-cache/air25";
 static NSDictionary *cacheEntries;
@@ -130,6 +131,7 @@ static id CachedLibraryData(id device, SEL selector, dispatch_data_t input,
             inputHash.UTF8String, outputHash.UTF8String, dynamic, library,
             failure.description.UTF8String ?: "none");
     if (!library) return nativeLibraryData(device, selector, input, error);
+    if (VZModernShaderUsesAddresses(converted)) VZModernMarkAddressLibrary(library);
     if (dynamic && !failure)
         VZModernRecordSuccessfulNativeLibrary(converted, inputHash);
     if (error) *error = nil;
