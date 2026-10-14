@@ -8,6 +8,7 @@
 //
 // Enabled only while /var/root/VirtualMac2/diagnostics/videotoolbox-probe exists.
 #include <CoreFoundation/CoreFoundation.h>
+#include <crt_externs.h>
 
 static const char vtProbeFlag[] = "/var/root/VirtualMac2/diagnostics/videotoolbox-probe";
 static const char vtBundledSuffix[] = "/payload/Frameworks/VideoToolbox.framework/VideoToolbox";
@@ -119,6 +120,51 @@ _ip_vt_probe[] __attribute__((section("__DATA,__interpose"))) = {
     {(const void *)vt_probe_session_create, (const void *)VTParavirtualizationHostSessionCreate},
     {(const void *)vt_probe_deliver,
      (const void *)VTParavirtualizationHostSessionDeliverMessageFromGuest},
+};
+
+// The VMM copies every host-to-guest VideoToolbox message into a buffer the
+// guest posted and asserts "Buffer too small" when it does not fit. Keep the
+// largest size seen for each message type on that path, which is the only
+// place the VMM executable itself asks a block buffer for its length, so an
+// oversized message can be identified from the log after the VMM stops on it.
+extern size_t CMBlockBufferGetDataLength(void *buffer) __attribute__((weak_import));
+static struct { uint64_t type; size_t largest; unsigned count; } vtProbeMessages[32];
+static pthread_mutex_t vtProbeMessageLock = PTHREAD_MUTEX_INITIALIZER;
+static size_t vt_probe_block_length(void *buffer) {
+    size_t length = CMBlockBufferGetDataLength(buffer);
+    if (!vt_probe_enabled) return length;
+    void *caller = __builtin_return_address(0);
+#if __has_feature(ptrauth_calls)
+    caller = ptrauth_strip(caller, ptrauth_key_return_address);
+#endif
+    Dl_info information = {0};
+    if (!dladdr(caller, &information) || information.dli_fbase != (void *)_NSGetMachExecuteHeader())
+        return length;
+    int32_t (*copyBytes)(void *, size_t, size_t, void *) =
+        dlsym(RTLD_DEFAULT, "CMBlockBufferCopyDataBytes");
+    uint8_t head[12] = {0};
+    if (!copyBytes || length < sizeof(head) || copyBytes(buffer, 0, sizeof(head), head)) return length;
+    uint64_t type;
+    memcpy(&type, head + 4, sizeof(type));
+    pthread_mutex_lock(&vtProbeMessageLock);
+    for (unsigned i = 0; i < sizeof(vtProbeMessages) / sizeof(vtProbeMessages[0]); ++i) {
+        if (vtProbeMessages[i].count && vtProbeMessages[i].type != type) continue;
+        BOOL grew = length > vtProbeMessages[i].largest;
+        vtProbeMessages[i].type = type;
+        ++vtProbeMessages[i].count;
+        if (grew) {
+            vtProbeMessages[i].largest = length;
+            logf_("[VTProbe] host-to-guest message type=%.8s largest=%zu count=%u", head + 4,
+                  length, vtProbeMessages[i].count);
+        }
+        break;
+    }
+    pthread_mutex_unlock(&vtProbeMessageLock);
+    return length;
+}
+__attribute__((used)) static struct { const void *replacement, *original; }
+_ip_vt_probe_block[] __attribute__((section("__DATA,__interpose"))) = {
+    {(const void *)vt_probe_block_length, (const void *)CMBlockBufferGetDataLength},
 };
 
 static void videotoolbox_probe_install(void) {

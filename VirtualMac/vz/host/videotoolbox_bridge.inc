@@ -80,7 +80,13 @@ typedef struct {
 } VTBridgeOutputRecord;
 
 // Per-decoder storage. hostSession is the bundled framework's decoder session.
-typedef struct { void *systemSession, *hostSession; BOOL copy; } VTBridgeDecoder;
+typedef struct {
+    void *systemSession, *hostSession;
+    BOOL copy, invalidating, failed;
+    unsigned index, frames, emitFailures, bufferCount;
+    uint64_t emitNanoseconds, slowestEmit, copyNanoseconds;
+    void *buffers[32];  // distinct host pool buffers seen, to tell reuse from growth
+} VTBridgeDecoder;
 
 static struct {
     // Bundled framework.
@@ -168,30 +174,63 @@ static void vt_bridge_output(void *refcon, void *frame, int32_t status, uint32_t
     unsigned count = __sync_add_and_fetch(&vtBridgeFrames, 1);
     if (status && __sync_add_and_fetch(&vtBridgeErrors, 1) <= 16)
         logf_("[VTBridge] system decoder returned status=%d frame #%u", status, count);
-    else if (count <= 4 || !(count & (count - 1))) {
-        void *(*surfaceOf)(void *) = dlsym(RTLD_DEFAULT, "CVPixelBufferGetIOSurface");
-        uint32_t (*surfaceID)(void *) = dlsym(RTLD_DEFAULT, "IOSurfaceGetID");
-        void *surface = imageBuffer && surfaceOf ? surfaceOf(imageBuffer) : NULL;
-        logf_("[VTBridge] decoded frame #%u image=%p surface=%p id=%u", count, imageBuffer,
-              surface, surface && surfaceID ? surfaceID(surface) : 0);
+
+    // Invalidation drains the system session. The guest is tearing the decoder
+    // down and no longer wants these images; report them as dropped instead of
+    // sending full frame messages into its shutdown.
+    if (__atomic_load_n(&decoder->invalidating, __ATOMIC_ACQUIRE)) {
+        vtBridge.emitFrame(decoder->hostSession, frame, status ? status : -12903, infoFlags, NULL);
+        return;
     }
     void *emitted = imageBuffer, *copied = NULL;
+    // After the guest stopped acknowledging frames, each further image would
+    // wait out the host session's one second reply timeout. Report an error.
+    if (decoder->failed) {
+        vtBridge.emitFrame(decoder->hostSession, frame, status ? status : -12911, infoFlags, NULL);
+        return;
+    }
+    uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     if (decoder->copy && imageBuffer && !status) {
         copied = vt_bridge_copy(decoder, imageBuffer, count);
         if (copied) emitted = copied;
     }
+    uint64_t copiedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     int32_t result = vtBridge.emitFrame(decoder->hostSession, frame, status, infoFlags, emitted);
-    if (count <= 4 || result)
-        logf_("[VTBridge] emit frame #%u status=%d infoFlags=0x%x copy=%d -> %d", count, status,
-              infoFlags, copied != NULL, result);
+    uint64_t spent = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - copiedAt;
+    unsigned frames = ++decoder->frames;
+    decoder->copyNanoseconds += copiedAt - began;
+    decoder->emitNanoseconds += spent;
+    if (spent > decoder->slowestEmit) decoder->slowestEmit = spent;
+    if (copied) {
+        unsigned i = 0;
+        while (i < decoder->bufferCount && decoder->buffers[i] != copied) ++i;
+        if (i == decoder->bufferCount && i < 32) decoder->buffers[decoder->bufferCount++] = copied;
+    }
+    if (result) {
+        if (++decoder->emitFailures >= 2) decoder->failed = YES;
+        logf_("[VTBridge] session #%u emit frame %u copy=%d -> %d after %llu ms%s", decoder->index,
+              frames, copied != NULL, result, (unsigned long long)(spent / 1000000),
+              decoder->failed ? "; guest is not acknowledging, bridge stops for this session" : "");
+    } else decoder->emitFailures = 0;
+    if (frames <= 2 || frames % 30 == 0)
+        logf_("[VTBridge] session #%u frames=%u poolBuffers=%u%s copy avg=%llu us emit avg=%llu us slowest=%llu ms",
+              decoder->index, frames, decoder->bufferCount, decoder->bufferCount == 32 ? "+" : "",
+              (unsigned long long)(decoder->copyNanoseconds / frames / 1000),
+              (unsigned long long)(decoder->emitNanoseconds / frames / 1000),
+              (unsigned long long)(decoder->slowestEmit / 1000000));
     if (copied) CFRelease(copied);
 }
 
-static CFDictionaryRef vt_bridge_pixel_attributes(void) {
+static CFDictionaryRef vt_bridge_pixel_attributes(void *formatDescription) {
     CFStringRef *formatKey = dlsym(RTLD_DEFAULT, "kCVPixelBufferPixelFormatTypeKey");
     CFStringRef *surfaceKey = dlsym(RTLD_DEFAULT, "kCVPixelBufferIOSurfacePropertiesKey");
     if (!formatKey || !surfaceKey) return NULL;
-    int32_t format = '420v';
+    // Keep 10-bit content 10-bit; everything else decodes to 8-bit 4:2:0.
+    int32_t format = '420v', depth = 8;
+    CFTypeRef (*extension)(void *, CFStringRef) = dlsym(RTLD_DEFAULT, "CMFormatDescriptionGetExtension");
+    CFTypeRef bits = extension ? extension(formatDescription, CFSTR("BitsPerComponent")) : NULL;
+    if (bits && CFGetTypeID(bits) == CFNumberGetTypeID() &&
+        CFNumberGetValue(bits, kCFNumberSInt32Type, &depth) && depth == 10) format = 'x420';
     CFNumberRef number = CFNumberCreate(NULL, kCFNumberSInt32Type, &format);
     // The decoded surface reaches the guest through another process. iPadOS
     // only lets that process look the surface up when it is registered
@@ -220,14 +259,20 @@ static int32_t vt_bridge_start(void *object, void *session, void *format) {
     const void *values[] = {kCFBooleanTrue};
     CFDictionaryRef specification = CFDictionaryCreate(NULL, keys, values, 1,
         &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    CFDictionaryRef attributes = vt_bridge_pixel_attributes();
+    CFDictionaryRef attributes = vt_bridge_pixel_attributes(format);
     VTBridgeOutputRecord record = {vt_bridge_output, decoder};
     int32_t status = vtBridge.sessionCreate(NULL, format, specification, attributes, &record,
                                             &decoder->systemSession);
     if (!status && attributes && vtBridge.setPixelBufferAttributes)
         vtBridge.setPixelBufferAttributes(session, attributes);
-    logf_("[VTBridge] session #%u start status=%d system=%p copy=%d",
-          __sync_add_and_fetch(&vtBridgeSessions, 1), status, decoder->systemSession, decoder->copy);
+    decoder->index = __sync_add_and_fetch(&vtBridgeSessions, 1);
+    uint32_t (*subType)(void *) = dlsym(RTLD_DEFAULT, "CMFormatDescriptionGetMediaSubType");
+    uint64_t (*dimensions)(void *) = dlsym(RTLD_DEFAULT, "CMVideoFormatDescriptionGetDimensions");
+    uint32_t codec = subType ? subType(format) : 0;
+    uint64_t size = dimensions ? dimensions(format) : 0;
+    logf_("[VTBridge] session #%u start %c%c%c%c %ux%u status=%d copy=%d", decoder->index,
+          codec >> 24, codec >> 16, codec >> 8, codec, (uint32_t)size, (uint32_t)(size >> 32),
+          status, decoder->copy);
     if (attributes) CFRelease(attributes);
     CFRelease(specification);
     return status;
@@ -237,6 +282,7 @@ static int32_t vt_bridge_decode(void *object, void *frame, void *sampleBuffer, u
                                 uint32_t *infoFlagsOut) {
     VTBridgeDecoder *decoder = vtBridge.derivedStorage(object);
     if (!decoder || !decoder->systemSession) return -12902;
+    if (decoder->failed) return -12911;
     // The frame token travels as the system session's per-frame refcon and
     // comes back in vt_bridge_output, which emits it exactly once.
     return vtBridge.sessionDecode(decoder->systemSession, sampleBuffer, flags, frame, infoFlagsOut);
@@ -247,6 +293,8 @@ static int32_t vt_bridge_finish(void *object) {
     if (!decoder || !decoder->systemSession) return 0;
     int32_t status = vtBridge.sessionFinish(decoder->systemSession);
     int32_t waited = vtBridge.sessionWait(decoder->systemSession);
+    logf_("[VTBridge] finish delayed frames system=%p status=%d wait=%d frames=%u",
+          decoder->systemSession, status, waited, vtBridgeFrames);
     return status ? status : waited;
 }
 
@@ -262,6 +310,9 @@ static int32_t vt_bridge_supported_properties(void *object, CFDictionaryRef *out
 static int32_t vt_bridge_invalidate(void *object) {
     VTBridgeDecoder *decoder = vtBridge.derivedStorage(object);
     if (decoder && decoder->systemSession) {
+        logf_("[VTBridge] session #%u invalidate frames=%u poolBuffers=%u failed=%d", decoder->index,
+              decoder->frames, decoder->bufferCount, decoder->failed);
+        __atomic_store_n(&decoder->invalidating, YES, __ATOMIC_RELEASE);
         // Blocks until pending output callbacks have run.
         vtBridge.sessionInvalidate(decoder->systemSession);
         CFRelease(decoder->systemSession);
@@ -346,15 +397,30 @@ static void videotoolbox_bridge_install(void) {
         logf_("[VTBridge] not installed: a required symbol is missing or not distinct");
         return;
     }
+    // The codecs iPadOS 16 decodes in hardware on this class of device. Its
+    // VideoToolbox reports no hardware VP9 or AV1 decoder.
+    static const struct { uint32_t codec; CFStringRef capabilities; } codecs[] = {
+        {'avc1', CFSTR("IOAVDH264DecodeCapabilities")},
+        {'hvc1', CFSTR("IOAVDHEVCDecodeCapabilities")},
+    };
+    Boolean (*supported)(uint32_t) = dlsym(system, "VTIsHardwareDecodeSupported");
     int32_t rating = 1000000;
     CFNumberRef ratingValue = CFNumberCreate(NULL, kCFNumberSInt32Type, &rating);
-    const void *keys[] = {*hardwareKey, *awareKey, *ratingKey, *capabilitiesKey};
-    const void *values[] = {kCFBooleanTrue, kCFBooleanTrue, ratingValue,
-                            CFSTR("IOAVDH264DecodeCapabilities")};
-    CFDictionaryRef information = CFDictionaryCreate(NULL, keys, values, 4,
-        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    int32_t status = vtBridge.registerDecoder('avc1', information, vt_bridge_create);
-    CFRelease(information);
+    for (unsigned i = 0; i < sizeof(codecs) / sizeof(codecs[0]); ++i) {
+        uint32_t codec = codecs[i].codec;
+        if (!supported || !supported(codec)) {
+            logf_("[VTBridge] %c%c%c%c not registered: no system hardware decoder",
+                  codec >> 24, codec >> 16, codec >> 8, codec);
+            continue;
+        }
+        const void *keys[] = {*hardwareKey, *awareKey, *ratingKey, *capabilitiesKey};
+        const void *values[] = {kCFBooleanTrue, kCFBooleanTrue, ratingValue, codecs[i].capabilities};
+        CFDictionaryRef information = CFDictionaryCreate(NULL, keys, values, 4,
+            &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        int32_t status = vtBridge.registerDecoder(codec, information, vt_bridge_create);
+        CFRelease(information);
+        logf_("[VTBridge] registered %c%c%c%c hardware bridge status=%d",
+              codec >> 24, codec >> 16, codec >> 8, codec, status);
+    }
     CFRelease(ratingValue);
-    logf_("[VTBridge] registered H.264 hardware bridge status=%d", status);
 }
