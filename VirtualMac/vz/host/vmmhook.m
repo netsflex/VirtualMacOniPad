@@ -348,6 +348,8 @@ static void logf_(const char *fmt, ...) {
     fputc('\n', f); fclose(f);
 }
 
+#include "btaudio_retry.inc"
+
 static void log_address(const char *label, void *address) {
     Dl_info info = {0};
     if (address && dladdr(address, &info) && info.dli_fbase) {
@@ -2949,6 +2951,7 @@ __attribute__((constructor)) static void hook_init(void) {
     if (runtime_debug_logging)
         start_health_timer();
     install_usb_hci_trace();
+    btaudio_retry_install();
     // Optional debug delay: set VMMHOOK_DEBUG_SLEEP=N to give lldb time to attach
     // before the VMM accepts the host's connection (catch breakpoints in the open/hv path).
     const char *s = getenv("VMMHOOK_DEBUG_SLEEP");
