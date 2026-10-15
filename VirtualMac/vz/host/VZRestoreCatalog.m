@@ -229,7 +229,9 @@ static NSDictionary *VZMacOSIdentityForImage(NSDictionary *image)
 
 + (BOOL)isExperimentalImage:(NSDictionary *)image
 {
-    return [self majorVersionForImage:image] >= 27;
+    // macOS 27 runs as well as macOS 26 with the macOS 27 graphics backend.
+    // Only versions this build does not support still carry the warning.
+    return [self isUnsupportedImage:image];
 }
 
 + (BOOL)isUnsupportedImage:(NSDictionary *)image
