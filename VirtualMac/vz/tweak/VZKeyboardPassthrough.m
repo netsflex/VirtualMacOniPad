@@ -115,8 +115,10 @@ static BOOL VirtualMacIsFrontmost(id springBoard)
             return NO;
         NSString *bundleIdentifier = ((id (*)(id, SEL))objc_msgSend)(
             application, bundleSelector);
+        // Virtual Mac 2 is a separate app with its own identifier.
         return [bundleIdentifier isEqualToString:
-            [NSString stringWithUTF8String:gTargetBundleID]];
+                    [NSString stringWithUTF8String:gTargetBundleID]] ||
+            [bundleIdentifier isEqualToString:@"com.mac.virtual.v2"];
     } @catch (NSException *exception) {
         Log("frontmost application lookup raised; leaving system input enabled");
         return NO;

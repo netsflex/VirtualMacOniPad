@@ -13,7 +13,8 @@ Inputs are local snapshots:
   --binaries      freshly built VirtualMac (unsigned), virtualmac-diagnostics,
                   install-launcher, install-macos and VZHostCompat.dylib
                   (signed), with install-launcher and install-macos built with
-                  -DVZ_RUNTIME_ROOT='"/var/root/VirtualMac2"'
+                  -DVZ_RUNTIME_ROOT='"/var/root/VirtualMac2"', and optionally a
+                  rebuilt VZKeyboardPassthrough.dylib and .plist
 """
 import argparse
 import hashlib
@@ -145,7 +146,7 @@ def main():
     parser.add_argument("--binaries", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--release-version", default="2.0.0beta1")
-    parser.add_argument("--build-number", default="1002")
+    parser.add_argument("--build-number", default="1003")
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9][A-Za-z0-9.+-]*", args.release_version) or not re.fullmatch(r"[0-9]+", args.build_number):
         parser.error("Expected a safe release version and numeric build number")
@@ -186,7 +187,11 @@ def main():
         copy_file(args.binaries / "virtualmac-diagnostics", stage / "var/jb/usr/bin/virtualmac-diagnostics", 0o755)
         for relative in SHARED_FILES:
             destination = relative.replace("var/root/VirtualMac/", RUNTIME[1:] + "/")
-            copy_file(args.release_123 / relative, stage / destination)
+            # A rebuilt keyboard tweak in --binaries replaces 1.2.3's copy.
+            origin = args.binaries / Path(relative).name
+            if "/TweakInject/" not in relative or not origin.is_file():
+                origin = args.release_123 / relative
+            copy_file(origin, stage / destination)
         # iPadOS 16 uses the .ipados16 network sharing daemon.
         copy_file(args.release_123 / "var/jb/usr/libexec/InternetSharing.ipados16",
                   stage / "var/jb/usr/libexec/InternetSharing", 0o755)
