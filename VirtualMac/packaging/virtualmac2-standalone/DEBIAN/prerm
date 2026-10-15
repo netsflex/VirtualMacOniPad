@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+export PATH=/var/jb/usr/bin:/var/jb/usr/sbin:/var/jb/bin:/var/jb/sbin:/usr/bin:/bin:/usr/sbin:/sbin
+processes=$(ps -A -o command=)
+if printf '%s\n' "$processes" | awk '
+    /\/VirtualMac2\/payload\/VirtualMachine\.xpc\/Contents\/MacOS\/com\.apple\.Virtualization\.VirtualMachine([[:space:]]|$)/ ||
+    /\/VirtualMac2\/payload\/Installation\.xpc\/Contents\/MacOS\/com\.apple\.Virtualization\.Installation([[:space:]]|$)/ ||
+    /\/VirtualMac2\/payload\/.*\/com\.apple\.gpusw\.ParavirtualizedGraphicsGPUTask([[:space:]]|$)/ ||
+    /\/VirtualMac2\/compiler27\/(metal-library-convert|vz-air-normalize)([[:space:]]|$)/ ||
+    /\/VirtualMac2\/install\/install-macos([[:space:]]|$)/ ||
+    /\/VirtualMac2\.app\/VirtualMac([[:space:]]|$)/ { found=1 }
+    END { exit !found }'; then
+    echo "Shut down the Virtual Mac 2 guest normally and close the app first." >&2
+    exit 1
+fi
+case "${1:-}" in
+    remove|deconfigure)
+        for domain in system user/501; do
+            launchctl bootout "$domain/vzi.apple.bootpd" 2>/dev/null || true
+            launchctl bootout "$domain/com.apple.NetworkSharing" 2>/dev/null || true
+        done
+        rm -f /var/jb/usr/lib/TweakInject/VZKeyboardPassthrough.dylib \
+            /var/jb/usr/lib/TweakInject/VZKeyboardPassthrough.plist
+        uicache -u /var/jb/Applications/VirtualMac2.app 2>/dev/null || true
+        ;;
+esac
+exit 0

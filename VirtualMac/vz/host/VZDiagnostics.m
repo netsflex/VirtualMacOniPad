@@ -455,6 +455,8 @@ static NSData *VZRuntimePathData(void)
         @"/Applications/VirtualMac.app/VirtualMac",
         @"/var/jb/Applications/VirtualMac.app",
         @"/var/jb/Applications/VirtualMac.app/VirtualMac",
+        @"/var/jb/Applications/VirtualMac2.app",
+        @"/var/jb/Applications/VirtualMac2.app/VirtualMac",
         VZRuntimeRoot(),
         VZRuntimePath(@"install"),
         VZRuntimePath(@"payload"),
@@ -566,7 +568,8 @@ static void VZEnumerateDiagnosticEntries(VZDiagnosticEntryHandler handler)
             VZCommandOutput(dpkgQuery, @[@"-W",
                 @"-f=${Package}\t${Version}\t${Architecture}\\n"]));
         VZAddEntry(handler, @"package/metadata.txt",
-            VZCommandOutput(dpkgQuery, @[@"-s", @"com.mac.virtual"]));
+            VZCommandOutput(dpkgQuery, @[@"-s", @"com.mac.virtual",
+                @"com.mac.virtual.v2"]));
     }
     NSMutableArray *dpkgPaths = [NSMutableArray arrayWithArray:
         @[@"/var/jb/usr/bin/dpkg", @"/usr/bin/dpkg"]];
@@ -576,7 +579,8 @@ static void VZEnumerateDiagnosticEntries(VZDiagnosticEntryHandler handler)
     NSString *dpkg = VZFirstExecutablePath(dpkgPaths);
     if (dpkg)
         VZAddEntry(handler, @"package/verification.txt",
-            VZCommandOutput(dpkg, @[@"--verify", @"com.mac.virtual"]));
+            VZCommandOutput(dpkg, @[@"--verify", @"com.mac.virtual",
+                @"com.mac.virtual.v2"]));
     VZAddEntry(handler, @"package/runtime-paths.txt", VZRuntimePathData());
 
     NSString *launchctl = VZFirstExecutablePath(

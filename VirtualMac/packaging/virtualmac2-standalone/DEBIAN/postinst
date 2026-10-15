@@ -1,0 +1,143 @@
+#!/bin/sh
+set -eu
+export PATH=/var/jb/usr/bin:/var/jb/usr/sbin:/var/jb/bin:/var/jb/sbin:/usr/bin:/bin:/usr/sbin:/sbin
+test "${1:-}" = configure || exit 0
+runtime=/var/root/VirtualMac2
+app=/var/jb/Applications/VirtualMac2.app
+compiler="$runtime/compiler27"
+source="$runtime/package-source/compiler27"
+library=/var/mobile/Media/VirtualMac
+tweak_payload="$runtime/bootstrap-common/usr/lib/TweakInject"
+tweak_dir=/var/jb/usr/lib/TweakInject
+launch_daemons=/var/jb/Library/LaunchDaemons
+processes=$(ps -A -o command=)
+if printf '%s\n' "$processes" | awk '
+    /\/Contents\/MacOS\/com\.apple\.Virtualization\.VirtualMachine([[:space:]]|$)/ ||
+    /\/Contents\/MacOS\/com\.apple\.Virtualization\.Installation([[:space:]]|$)/ ||
+    /\/Contents\/MacOS\/com\.apple\.gpusw\.ParavirtualizedGraphicsGPUTask([[:space:]]|$)/ ||
+    /\/VirtualMac2\/compiler27\/(metal-library-convert|vz-air-normalize)([[:space:]]|$)/ ||
+    /\/VirtualMac2\.app\/VirtualMac([[:space:]]|$)/ { found=1 }
+    END { exit !found }'; then
+    echo "Shut down virtual machines normally and close Virtual Mac 2 before configuring." >&2
+    exit 1
+fi
+
+# A file that has already executed must be replaced through a new inode, or
+# the old code-signing validation can stay attached to the new bytes.
+replace_file() {
+    replace_temporary="$2.virtualmac-new"
+    cp "$1" "$replace_temporary"
+    chmod "$3" "$replace_temporary"
+    mv -f "$replace_temporary" "$2"
+}
+
+for directory in "$runtime" "$runtime/payload" "$runtime/install" "$runtime/package-source" \
+    "$source" "$compiler" "$compiler/work" "$runtime/testing" "$runtime/release" \
+    "$runtime/shader-cache" "$runtime/shader-cache/air25" "$app"; do
+    test ! -L "$directory" || { echo "Refusing a symlinked runtime directory: $directory" >&2; exit 1; }
+done
+mkdir -p "$compiler/work"
+chown 0:0 "$runtime" "$compiler"
+chmod 755 "$runtime" "$compiler"
+chown 501:501 "$compiler/work"
+chmod 700 "$compiler/work"
+
+# Do not overwrite matching compiler files: an existing cache receipt binds
+# their inode and stat fields as well as their SHA256.
+while read -r expected filename; do
+    case "$filename" in
+        VM27CompilerCompat.dylib|VM27GPUCompiler.dylib|VM27GPUCompilerImpl.dylib|VM27LLVM.dylib|VM27llvm-flatbuffers.dylib|VM27llvm-lmdb.dylib|metal-library-convert|vz-air-normalize) mode=755 ;;
+        compiler-profile.json) mode=644 ;;
+        *) echo "Unexpected private compiler component." >&2; exit 1 ;;
+    esac
+    test ! -L "$source/$filename"
+    test -f "$source/$filename"
+    actual=$(sha256sum "$source/$filename" | cut -d ' ' -f1)
+    test "$actual" = "$expected"
+    destination="$compiler/$filename"
+    test ! -L "$destination"
+    if test -f "$destination" && cmp -s "$source/$filename" "$destination" &&
+       test "$(stat -c '%u:%g:%a:%h' "$destination")" = "0:0:$mode:1"; then
+        continue
+    fi
+    temporary="$compiler/.release-$filename-$$"
+    test ! -e "$temporary" && test ! -L "$temporary"
+    install -m "$mode" "$source/$filename" "$temporary"
+    chown 0:0 "$temporary"
+    mv "$temporary" "$destination"
+done <"$runtime/package-source/compiler27.sha256"
+
+chown -R 501:20 "$app"
+chown 0:0 "$app/VirtualMac"
+chmod 755 "$app" "$app/VirtualMac" "$app/VZHostCompat.dylib"
+# The static AIR cache and compiler work directory are the only package data
+# the mobile GPU task writes.
+chown -R 501:501 "$runtime/shader-cache"
+chmod 700 "$runtime/shader-cache" "$runtime/shader-cache/air25"
+find "$runtime/shader-cache/air25" -type f -exec chmod 600 {} +
+
+# The app runs as mobile and starts macOS installations through this setuid
+# launcher, which only executes $runtime/install/start-install.sh.
+chown -R 0:0 "$runtime/install"
+chmod 755 "$runtime/install" "$runtime/install/install-macos" \
+    "$runtime/install/VZHostCompat.dylib" "$runtime/install/start-install.sh"
+chmod 4755 "$runtime/install/install-launcher"
+
+mkdir -p "$library/Restore Images" "$library/Installations"
+chown mobile:mobile "$library" "$library/Restore Images" "$library/Installations"
+chmod 755 "$library" "$library/Restore Images" "$library/Installations"
+mkdir -p /var/db
+touch /var/db/dhcpd_leases
+chown root:wheel /var/db/dhcpd_leases
+chmod 644 /var/db/dhcpd_leases
+
+sha256sum --quiet -c "$runtime/release/files.sha256"
+
+jbctl=/var/jb/usr/bin/jbctl
+test -x "$jbctl" || jbctl=/var/jb/basebin/jbctl
+while read -r hash path; do
+    case "$hash" in ''|*[!0-9a-f]*) echo "Invalid package trust hash." >&2; exit 1 ;; esac
+    test "${#hash}" -eq 40
+    case "$path" in
+        /var/root/VirtualMac2/*|/var/jb/Applications/VirtualMac2.app/*) ;;
+        /var/jb/usr/bin/virtualmac-diagnostics|/var/jb/usr/libexec/InternetSharing|/var/jb/usr/libexec/bootpd|/var/jb/usr/sbin/rtadvd) ;;
+        /var/jb/usr/lib/AuthorizationCompat.dylib|/var/jb/usr/lib/NetworkMemoryPolicy.dylib|/var/jb/usr/lib/OpenDirectoryCompat.dylib|/var/jb/usr/lib/libmrc.dylib) ;;
+        *) echo "Trust entry outside the package: $path" >&2; exit 1 ;;
+    esac
+    test -f "$path" && test ! -L "$path"
+    actual=$(ldid -h "$path" 2>&1 | sed -n 's/^CDHash=//p')
+    test "$actual" = "$hash"
+    "$jbctl" trustcache add "$hash"
+done <"$runtime/release/trustcache.txt"
+
+# Install the tweak after dpkg has removed 1.2.3's copy of it.
+mkdir -p "$tweak_dir"
+replace_file "$tweak_payload/VZKeyboardPassthrough.dylib" "$tweak_dir/VZKeyboardPassthrough.dylib" 755
+replace_file "$tweak_payload/VZKeyboardPassthrough.plist" "$tweak_dir/VZKeyboardPassthrough.plist" 644
+
+# NAT networking: the same iPadOS 16 setup as release 1.2.3.
+for domain in system user/501; do
+    launchctl bootout "$domain/vzi.apple.bootpd-controller" 2>/dev/null || true
+    launchctl bootout "$domain/vzi.apple.bootpd" 2>/dev/null || true
+    launchctl bootout "$domain/com.apple.NetworkSharing" 2>/dev/null || true
+done
+launchctl bootstrap user/501 "$launch_daemons/com.apple.NetworkSharing.plist"
+launchctl kickstart -k user/501/com.apple.NetworkSharing
+launchctl enable user/501/vzi.apple.bootpd
+launchctl bootstrap user/501 "$launch_daemons/com.apple.bootpd.plist"
+
+uicache -p "$app"
+echo "Virtual Mac 2 is installed. Virtual machine bundles and existing caches were retained."
+# The keyboard tweak loads into SpringBoard, so ask the package manager for a respring.
+if test -n "${CYDIA:-}"; then
+    read -r finish_fd finish_version <<FINISH
+$CYDIA
+FINISH
+    case "$finish_fd" in
+        ''|*[!0-9]*) ;;
+        *) if test "${finish_version:-0}" -ge 1 2>/dev/null; then echo "finish:restart" >&$finish_fd; fi ;;
+    esac
+else
+    echo "finish:restart"
+fi
+exit 0

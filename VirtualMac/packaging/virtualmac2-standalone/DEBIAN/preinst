@@ -1,0 +1,42 @@
+#!/bin/sh
+set -eu
+export PATH=/var/jb/usr/bin:/var/jb/usr/sbin:/var/jb/bin:/var/jb/sbin:/usr/bin:/bin:/usr/sbin:/sbin
+
+test -d /var/jb/Applications || { echo "Virtual Mac 2 requires a rootless jailbreak." >&2; exit 1; }
+test -x /var/jb/usr/bin/jbctl || test -x /var/jb/basebin/jbctl || {
+    echo "Virtual Mac 2 requires the rootless jailbreak trustcache tool." >&2
+    exit 1
+}
+case "$(sw_vers -productVersion)" in
+    16.*) ;;
+    *) echo "Virtual Mac 2 supports iPadOS 16 only." >&2; exit 1 ;;
+esac
+for parent in /var/root/VirtualMac2 /var/root/VirtualMac2/payload \
+    /var/root/VirtualMac2/install /var/root/VirtualMac2/bootstrap-common \
+    /var/root/VirtualMac2/package-source /var/root/VirtualMac2/package-source/compiler27 \
+    /var/root/VirtualMac2/compiler27 /var/root/VirtualMac2/compiler27/work \
+    /var/root/VirtualMac2/testing /var/root/VirtualMac2/release \
+    /var/root/VirtualMac2/shader-cache /var/root/VirtualMac2/shader-cache/air25 \
+    /var/jb/Applications/VirtualMac2.app; do
+    test ! -L "$parent" || { echo "Refusing a symlinked private runtime directory: $parent" >&2; exit 1; }
+done
+# Refuse while either app, a VM, an installation or the shader compiler runs.
+# Installing this package also removes release 1.2.3.
+processes=$(ps -A -o command=)
+if printf '%s\n' "$processes" | awk '
+    /\/Contents\/MacOS\/com\.apple\.Virtualization\.VirtualMachine([[:space:]]|$)/ ||
+    /\/Contents\/MacOS\/com\.apple\.Virtualization\.Installation([[:space:]]|$)/ ||
+    /\/Contents\/MacOS\/com\.apple\.gpusw\.ParavirtualizedGraphicsGPUTask([[:space:]]|$)/ ||
+    /\/VirtualMac2\/compiler27\/(metal-library-convert|vz-air-normalize)([[:space:]]|$)/ ||
+    /\/install\/install-macos([[:space:]]|$)/ ||
+    /\/VirtualMac2?\.app\/VirtualMac([[:space:]]|$)/ { found=1 }
+    END { exit !found }'; then
+    echo "Shut down virtual machines normally and close Virtual Mac and Virtual Mac 2 before installing." >&2
+    exit 1
+fi
+# Virtual Mac runs as mobile and must traverse /var/root to reach the setuid
+# installation launcher. Add traverse permission only.
+chmod o+x /var/root
+rm -f /tmp/vmm.stderr.log /tmp/restore-vmm.stderr.log
+rm -f /tmp/vmm_ep.txt.* /tmp/installation_ep.txt.*
+exit 0
