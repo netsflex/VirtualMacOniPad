@@ -116,7 +116,7 @@ def copy_tree(source, destination):
             raise ValueError(f"Unsupported package input node: {path}")
 
 
-def stage_app(source, binary, destination, build):
+def stage_app(source, binary, destination, version, build):
     copy_tree(source, destination)
     shutil.rmtree(destination / "_CodeSignature")
     copy_file(binary, destination / "VirtualMac", 0o755)
@@ -124,8 +124,18 @@ def stage_app(source, binary, destination, build):
     info = plistlib.loads(info_path.read_bytes())
     if info.get("CFBundleIdentifier") != "com.mac.virtual.v2" or info.get("VirtualMacRuntimeRoot") != RUNTIME:
         raise ValueError("Input app is not the Virtual Mac 2 bundle")
-    info["CFBundleVersion"] = build
+    upstream = info["CFBundleShortVersionString"]
+    info.update(CFBundleShortVersionString=version, CFBundleVersion=build,
+                CFBundleDisplayName=info["CFBundleDisplayName"].replace(upstream, version))
     info_path.write_bytes(plistlib.dumps(info))
+    # Localized names carry the version too, for example "虚拟Mac 2.0.0beta1".
+    for strings in destination.glob("*.lproj/InfoPlist.strings"):
+        raw = run("plutil", "-convert", "xml1", "-o", "-", str(strings), capture_output=True).stdout
+        localized = plistlib.loads(raw)
+        for key, value in localized.items():
+            if isinstance(value, str):
+                localized[key] = value.replace(upstream, version)
+        strings.write_bytes(plistlib.dumps(localized, fmt=plistlib.FMT_BINARY))
     # Keep the installed app's exact entitlements, including platform-application.
     entitlements = destination.parent / "app-entitlements.plist"
     entitlements.write_bytes(run("codesign", "-d", "--entitlements", ":-", str(source),
@@ -145,7 +155,7 @@ def main():
     parser.add_argument("--release-123", type=Path, required=True)
     parser.add_argument("--binaries", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--release-version", default="2.0.0beta1")
+    parser.add_argument("--release-version", default="2.1.0beta1")
     parser.add_argument("--build-number", default="1003")
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9][A-Za-z0-9.+-]*", args.release_version) or not re.fullmatch(r"[0-9]+", args.build_number):
@@ -163,7 +173,8 @@ def main():
         runtime, app = stage / RUNTIME[1:], stage / APP_PATH[1:]
         runtime.mkdir(parents=True)
         app.parent.mkdir(parents=True)
-        stage_app(args.v2_tree / APP_PATH[1:], args.binaries / "VirtualMac", app, args.build_number)
+        stage_app(args.v2_tree / APP_PATH[1:], args.binaries / "VirtualMac", app,
+                  args.release_version, args.build_number)
         for name in ("payload", "testing"):
             copy_tree(v2_runtime / name, runtime / name)
         (runtime / "shader-cache").mkdir()
