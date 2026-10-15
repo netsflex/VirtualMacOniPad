@@ -215,3 +215,17 @@ void VZEnableDebugLoggingForNextBoot(void)
         [settings setString:VZDebugLoggingModeNextBoot
                      forKey:VZDebugLoggingKey];
 }
+
+// Experimental builds can use a separate, rollback-ready runtime. Normal
+// packages retain the established path when the Info.plist key is absent.
+NSString *VZRuntimeRoot(void) {
+    id configured = [NSBundle.mainBundle objectForInfoDictionaryKey:@"VirtualMacRuntimeRoot"];
+    if ([configured isKindOfClass:NSString.class] &&
+        [configured hasPrefix:@"/"] && [configured length] > 1)
+        return [configured stringByStandardizingPath];
+    return @"/var/root/VirtualMac";
+}
+
+NSString *VZRuntimePath(NSString *relativePath) {
+    return [VZRuntimeRoot() stringByAppendingPathComponent:relativePath];
+}

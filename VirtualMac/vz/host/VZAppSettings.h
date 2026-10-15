@@ -2,6 +2,11 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// Root of this package's private runtime: Info.plist VirtualMacRuntimeRoot,
+// or the original /var/root/VirtualMac when the key is absent.
+FOUNDATION_EXPORT NSString *VZRuntimeRoot(void);
+FOUNDATION_EXPORT NSString *VZRuntimePath(NSString *relativePath);
+
 FOUNDATION_EXPORT NSString * const VZSettingsDidChangeNotification;
 FOUNDATION_EXPORT NSString * const VZLibraryLayoutKey;
 FOUNDATION_EXPORT NSString * const VZAutoBootVMPathKey;

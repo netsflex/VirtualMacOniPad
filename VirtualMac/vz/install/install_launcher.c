@@ -9,6 +9,13 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+// A setuid program must not locate what it executes from its own path, which
+// a hard link elsewhere could change. Each package builds in its runtime root.
+#ifndef VZ_RUNTIME_ROOT
+#define VZ_RUNTIME_ROOT "/var/root/VirtualMac"
+#endif
+#define VZ_START_INSTALL VZ_RUNTIME_ROOT "/install/start-install.sh"
+
 static int has_prefix(const char *value, const char *prefix)
 {
     return strncmp(value, prefix, strlen(prefix)) == 0;
@@ -49,8 +56,7 @@ static const char *bootstrap_tool(const char *rootless, const char *rootful)
 int main(int argc, char **argv)
 {
     if (argc == 2 && strcmp(argv[1], "--diagnose") == 0) {
-        const char *script =
-            "/var/root/VirtualMac/install/start-install.sh";
+        const char *script = VZ_START_INSTALL;
         struct stat info;
         printf("launcher uid=%u euid=%u gid=%u egid=%u\n",
                getuid(), geteuid(), getgid(), getegid());
@@ -182,7 +188,7 @@ int main(int argc, char **argv)
         return 1;
     }
     execl(bootstrap_tool("/var/jb/bin/sh", "/bin/sh"), "sh",
-          "/var/root/VirtualMac/install/start-install.sh", argv[1],
+          VZ_START_INSTALL, argv[1],
           argv[2], argv[3], argv[4], argv[5], argv[6], argv[7],
           (char *)NULL);
     fprintf(stderr, "INSTALL_FAILED\tlauncher exec failed: %s\n",

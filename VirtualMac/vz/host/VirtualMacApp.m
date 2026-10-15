@@ -3829,7 +3829,7 @@ static void VZWriteInstallationAttempt(NSString *attemptPath, NSString *state,
     NSString *memory = [@(restoreMemorySize) stringValue];
     NSString *storage = [options[@"StorageSize"] stringValue];
     const char *launcher =
-        "/var/root/VirtualMac/install/install-launcher";
+        VZRuntimePath(@"install/install-launcher").fileSystemRepresentation;
     char *arguments[] = {
         (char *)launcher,
         (char *)url.path.fileSystemRepresentation,
@@ -3931,7 +3931,8 @@ static void VZWriteInstallationAttempt(NSString *attemptPath, NSString *state,
             [self.installationTimer invalidate];
             self.installationTimer = nil;
             NSString *pid = [NSString stringWithFormat:@"%d", self.installationProcess];
-            const char *cancelLauncher = "/var/root/VirtualMac/install/install-launcher";
+            const char *cancelLauncher =
+                VZRuntimePath(@"install/install-launcher").fileSystemRepresentation;
             char *cancelArguments[] = {(char *)cancelLauncher, "--cancel-install",
                 (char *)pid.UTF8String,
                 (char *)self.installationAttemptPath.fileSystemRepresentation, NULL};
@@ -4537,20 +4538,6 @@ static void dumpRPCHandlers(id virtualMachine, const char *phase) {
                *(const void *const *)(node + 0x40));
         node = *(const uint8_t *const *)node;
     }
-}
-
-// Experimental builds can use a separate, rollback-ready runtime. Normal
-// packages retain the established path when the Info.plist key is absent.
-static NSString *VZRuntimeRoot(void) {
-    id configured = [NSBundle.mainBundle objectForInfoDictionaryKey:@"VirtualMacRuntimeRoot"];
-    if ([configured isKindOfClass:NSString.class] &&
-        [configured hasPrefix:@"/"] && [configured length] > 1)
-        return [configured stringByStandardizingPath];
-    return @"/var/root/VirtualMac";
-}
-
-static NSString *VZRuntimePath(NSString *relativePath) {
-    return [VZRuntimeRoot() stringByAppendingPathComponent:relativePath];
 }
 
 static BOOL VZUsesModernPVG(void) {

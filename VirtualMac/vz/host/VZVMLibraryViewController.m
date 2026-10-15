@@ -589,7 +589,7 @@ void VZRemovePaths(NSArray<NSString *> *paths)
         // files that the UIKit process cannot unlink. The setuid launcher
         // accepts only descendants of the two artifact directories.
         const char *launcher =
-            "/var/root/VirtualMac/install/install-launcher";
+            VZRuntimePath(@"install/install-launcher").fileSystemRepresentation;
         char *arguments[] = {(char *)launcher, "--delete-artifact",
             (char *)path.fileSystemRepresentation, NULL};
         pid_t child = 0;

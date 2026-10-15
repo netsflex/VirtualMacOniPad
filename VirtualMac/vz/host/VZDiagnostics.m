@@ -102,10 +102,10 @@ static NSData *VZInstallerPreflightData(void)
     NSMutableString *report = [NSMutableString stringWithFormat:
         @"caller uid=%u euid=%u gid=%u egid=%u\n",
         getuid(), geteuid(), getgid(), getegid()];
-    NSArray *paths = @[@"/var", @"/var/root", @"/var/root/VirtualMac",
-        @"/var/root/VirtualMac/install",
-        @"/var/root/VirtualMac/install/install-launcher",
-        @"/var/root/VirtualMac/install/start-install.sh"];
+    NSArray *paths = @[@"/var", @"/var/root", VZRuntimeRoot(),
+        VZRuntimePath(@"install"),
+        VZRuntimePath(@"install/install-launcher"),
+        VZRuntimePath(@"install/start-install.sh")];
     for (NSString *path in paths)
         VZAppendPathStatus(report, path);
     NSString *rootHideRoot = VZRootHideJailbreakRootPath();
@@ -142,7 +142,7 @@ static NSData *VZInstallerPreflightData(void)
     posix_spawn_file_actions_adddup2(&actions, descriptors[1], STDERR_FILENO);
     posix_spawn_file_actions_addclose(&actions, descriptors[1]);
     const char *launcher =
-        "/var/root/VirtualMac/install/install-launcher";
+        VZRuntimePath(@"install/install-launcher").fileSystemRepresentation;
     // A spawn error diagnoses the parent-directory/execute-permission failure
     // that prevents the launcher from running at all. Output from the
     // diagnostics-only mode covers the later privilege/script boundary.
@@ -392,7 +392,7 @@ static NSData *VZStorageData(void)
 {
     NSMutableString *report = [NSMutableString string];
     NSArray *paths = @[@"/var", @"/var/mobile", VZDiagnosticsLibraryPath(),
-        @"/var/root", @"/var/root/VirtualMac"];
+        @"/var/root", VZRuntimeRoot()];
     for (NSString *path in paths) {
         VZAppendPathStatus(report, path);
         struct statfs fileSystem = {0};
@@ -455,15 +455,15 @@ static NSData *VZRuntimePathData(void)
         @"/Applications/VirtualMac.app/VirtualMac",
         @"/var/jb/Applications/VirtualMac.app",
         @"/var/jb/Applications/VirtualMac.app/VirtualMac",
-        @"/var/root/VirtualMac",
-        @"/var/root/VirtualMac/install",
-        @"/var/root/VirtualMac/payload",
+        VZRuntimeRoot(),
+        VZRuntimePath(@"install"),
+        VZRuntimePath(@"payload"),
         @"/usr/libexec/VirtualMac/InternetSharing",
         @"/usr/libexec/VirtualMac/InternetSharing.ipados14",
         @"/usr/libexec/VirtualMac/bootpd",
-        @"/var/root/VirtualMac/rootful/Library/LaunchDaemons/com.apple.NetworkSharing.plist",
-        @"/var/root/VirtualMac/rootful/Library/LaunchDaemons/com.apple.bootpd.plist",
-        @"/var/root/VirtualMac/rootful/Library/LaunchDaemons/vzi.apple.bootpd-controller.plist",
+        VZRuntimePath(@"rootful/Library/LaunchDaemons/com.apple.NetworkSharing.plist"),
+        VZRuntimePath(@"rootful/Library/LaunchDaemons/com.apple.bootpd.plist"),
+        VZRuntimePath(@"rootful/Library/LaunchDaemons/vzi.apple.bootpd-controller.plist"),
         @"/tmp/bootpd.plist",
         @"/var/db/dhcpd_leases",
         @"/Library/MobileSubstrate/DynamicLibraries/VZKeyboardPassthrough.dylib",

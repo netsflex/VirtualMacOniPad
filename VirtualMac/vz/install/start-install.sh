@@ -20,7 +20,8 @@ if [ "$#" -ne 7 ]; then
     exit 2
 fi
 
-remote=/var/root/VirtualMac
+# The launcher executes this script at <runtime>/install/start-install.sh.
+remote=$(cd "$(dirname "$0")/.." && pwd -P)
 host_version=$(sw_vers -productVersion)
 ipsw=$1
 staging=$2

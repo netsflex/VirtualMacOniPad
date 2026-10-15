@@ -342,7 +342,10 @@ int main(int argc, const char *argv[])
                class_getName(class_getSuperclass([NSView class])),
                class_getInstanceSize([NSView class]));
 
-        NSString *root = @"/var/root/VirtualMac";
+#ifndef VZ_RUNTIME_ROOT
+#define VZ_RUNTIME_ROOT "/var/root/VirtualMac"
+#endif
+        NSString *root = @VZ_RUNTIME_ROOT;
         setenv("VZ_INSTALLATION_BIN", [[root stringByAppendingPathComponent:
             @"payload/Installation.xpc/Contents/MacOS/"
              "com.apple.Virtualization.Installation"] fileSystemRepresentation], 1);
