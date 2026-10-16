@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "קיצורי מקשים של Mac";
 "Mac Trackpad" = "משטח עקיבה של Mac";
 "macOS Installed" = "macOS הותקן";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (מחוות מקוריות, ניסיוני)";
 "Memory" = "זיכרון";
 "Metal BC Support" = "תמיכה ב‑Metal BC";
 "Microphone Input" = "קלט מיקרופון";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "שימוש ב-IPSW ב-iPad";
 "Use an IPSW on your iPhone" = "שימוש ב-IPSW ב-iPhone";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "ב-macOS Monterey יש להשתמש במקלדת USB. גרסאות חדשות יותר של macOS תומכות במקלדת Mac.";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "ב-macOS Monterey יש להשתמש בעכבר USB. גרסאות חדשות יותר של macOS תומכות במשטח עקיבה של Mac.";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "ב-macOS Monterey יש להשתמש בעכבר USB. גרסאות חדשות יותר של macOS תומכות במשטח עקיבה של Mac. Magic Trackpad (ניסיוני) מציג ל-macOS משטח עקיבה מרובה מגע שנתמך ב-iPad כ-Magic Trackpad אמיתי, כך ש-macOS מזהה את המחוות בעצמו.";
 "Validation failed: %@" = "האימות נכשל: %@";
 "Verify your iPad has sufficient free storage and try again." = "יש לוודא שיש ב-iPad מספיק מקום פנוי ולנסות שוב.";
 "Verify your iPhone has sufficient free storage and try again." = "יש לוודא שיש ב-iPhone מספיק מקום פנוי ולנסות שוב.";

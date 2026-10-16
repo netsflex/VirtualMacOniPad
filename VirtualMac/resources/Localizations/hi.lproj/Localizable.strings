@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "मैक कीबोर्ड शॉर्टकट";
 "Mac Trackpad" = "Mac ट्रैकपैड";
 "macOS Installed" = "macOS इंस्टॉल हो गया";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (नेटिव जेस्चर, प्रायोगिक)";
 "Memory" = "मेमोरी";
 "Metal BC Support" = "Metal BC समर्थन";
 "Microphone Input" = "माइक्रोफ़ोन इनपुट";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "iPad पर मौजूद IPSW का उपयोग करें";
 "Use an IPSW on your iPhone" = "iPhone पर मौजूद IPSW का उपयोग करें";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "macOS Monterey के लिए USB कीबोर्ड का उपयोग करें। macOS के नए संस्करण Mac कीबोर्ड डिवाइस का समर्थन करते हैं।";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "macOS Monterey के लिए USB माउस का उपयोग करें। macOS के नए संस्करण Mac ट्रैकपैड डिवाइस का समर्थन करते हैं।";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "macOS Monterey के लिए USB माउस का उपयोग करें। macOS के नए संस्करण Mac ट्रैकपैड डिवाइस का समर्थन करते हैं। Magic Trackpad (प्रायोगिक) iPad द्वारा समर्थित मल्टी-टच ट्रैकपैड को macOS के सामने असली Magic Trackpad के रूप में प्रस्तुत करता है, ताकि macOS जेस्चर स्वयं पहचाने।";
 "Validation failed: %@" = "वैलिडेशन विफल: %@";
 "Verify your iPad has sufficient free storage and try again." = "पक्का करें कि iPad में पर्याप्त खाली स्टोरेज है और फिर प्रयास करें।";
 "Verify your iPhone has sufficient free storage and try again." = "पक्का करें कि iPhone में पर्याप्त खाली स्टोरेज है और फिर प्रयास करें।";

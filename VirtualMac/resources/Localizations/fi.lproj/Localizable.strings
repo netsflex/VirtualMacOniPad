@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Macin pikanäppäimet";
 "Mac Trackpad" = "Mac-ohjauslevy";
 "macOS Installed" = "macOS asennettu";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (natiivit eleet, kokeellinen)";
 "Memory" = "Muisti";
 "Metal BC Support" = "Metal BC -tuki";
 "Microphone Input" = "Mikrofonitulo";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "Käytä iPadilla olevaa IPSW:tä";
 "Use an IPSW on your iPhone" = "Käytä iPhonella olevaa IPSW:tä";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "Käytä macOS Montereyssä USB-näppäimistöä. Uudemmat macOS-versiot tukevat Mac-näppäimistöä.";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "Käytä macOS Montereyssä USB-hiirtä. Uudemmat macOS-versiot tukevat Mac-ohjauslevyä.";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "Käytä macOS Montereyssä USB-hiirtä. Uudemmat macOS-versiot tukevat Mac-ohjauslevyä. Magic Trackpad (kokeellinen) esittää iPadin tukeman monikosketusohjauslevyn macOS:lle aitona Magic Trackpadina, joten macOS tunnistaa eleet itse.";
 "Validation failed: %@" = "Vahvistus epäonnistui: %@";
 "Verify your iPad has sufficient free storage and try again." = "Varmista, että iPadilla on riittävästi vapaata tilaa, ja yritä uudelleen.";
 "Verify your iPhone has sufficient free storage and try again." = "Varmista, että iPhonella on riittävästi vapaata tilaa, ja yritä uudelleen.";

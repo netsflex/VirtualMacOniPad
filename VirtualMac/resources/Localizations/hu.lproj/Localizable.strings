@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Mac Billentyűparancsok";
 "Mac Trackpad" = "Mac-trackpad";
 "macOS Installed" = "macOS telepítve";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (natív kézmozdulatok, kísérleti)";
 "Memory" = "Memória";
 "Metal BC Support" = "Metal BC-támogatás";
 "Microphone Input" = "Mikrofonbemenet";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "Az iPaden lévő IPSW használata";
 "Use an IPSW on your iPhone" = "Az iPhone-on lévő IPSW használata";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "macOS Monterey esetén használjon USB-billentyűzetet. Az újabb macOS-verziók támogatják a Mac-billentyűzetet.";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "macOS Monterey esetén használjon USB-egeret. Az újabb macOS-verziók támogatják a Mac-trackpadet.";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "macOS Monterey esetén használjon USB-egeret. Az újabb macOS-verziók támogatják a Mac-trackpadet. A Magic Trackpad (kísérleti) az iPad által támogatott multi-touch trackpadet valódi Magic Trackpadként adja át a macOS-nek, így a kézmozdulatokat maga a macOS ismeri fel.";
 "Validation failed: %@" = "Sikertelen ellenőrzés: %@";
 "Verify your iPad has sufficient free storage and try again." = "Ellenőrizze, hogy van-e elég szabad hely az iPaden, majd próbálja újra.";
 "Verify your iPhone has sufficient free storage and try again." = "Ellenőrizze, hogy van-e elég szabad hely az iPhone-on, majd próbálja újra.";

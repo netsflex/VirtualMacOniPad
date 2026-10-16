@@ -37,6 +37,7 @@ TECHNICAL_IDENTICAL_VALUES = {
     "MAC Address",
     "Mac Keyboard",
     "Mac Trackpad",
+    "Magic Trackpad",
     "NAT: Share %@",
     "Start %@",
     "USB Keyboard",

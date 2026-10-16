@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Συντομεύσεις πληκτρολογίου Mac";
 "Mac Trackpad" = "Επιφάνεια αφής Mac";
 "macOS Installed" = "Το macOS εγκαταστάθηκε";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (εγγενείς χειρονομίες, πειραματικό)";
 "Memory" = "Μνήμη";
 "Metal BC Support" = "Υποστήριξη Metal BC";
 "Microphone Input" = "Είσοδος μικροφώνου";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "Χρήση IPSW στο iPad";
 "Use an IPSW on your iPhone" = "Χρήση IPSW στο iPhone";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "Για το macOS Monterey χρησιμοποιήστε πληκτρολόγιο USB. Οι νεότερες εκδόσεις macOS υποστηρίζουν τη συσκευή πληκτρολογίου Mac.";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "Για το macOS Monterey χρησιμοποιήστε ποντίκι USB. Οι νεότερες εκδόσεις macOS υποστηρίζουν τη συσκευή επιφάνειας αφής Mac.";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "Για το macOS Monterey χρησιμοποιήστε ποντίκι USB. Οι νεότερες εκδόσεις macOS υποστηρίζουν τη συσκευή επιφάνειας αφής Mac. Το Magic Trackpad (πειραματικό) παρουσιάζει στο macOS μια επιφάνεια πολλαπλής αφής που υποστηρίζει το iPad ως πραγματικό Magic Trackpad, ώστε το macOS να αναγνωρίζει μόνο του τις χειρονομίες.";
 "Validation failed: %@" = "Η επικύρωση απέτυχε: %@";
 "Verify your iPad has sufficient free storage and try again." = "Βεβαιωθείτε ότι το iPad σας έχει αρκετό ελεύθερο χώρο και δοκιμάστε ξανά.";
 "Verify your iPhone has sufficient free storage and try again." = "Βεβαιωθείτε ότι το iPhone σας έχει αρκετό ελεύθερο χώρο και δοκιμάστε ξανά.";

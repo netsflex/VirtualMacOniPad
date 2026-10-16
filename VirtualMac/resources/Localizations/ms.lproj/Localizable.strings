@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Pintasan Papan Kekunci Mac";
 "Mac Trackpad" = "Trackpad Mac";
 "macOS Installed" = "macOS Dipasang";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (Gerak Isyarat Asli, Eksperimen)";
 "Memory" = "Memori";
 "Metal BC Support" = "Sokongan Metal BC";
 "Microphone Input" = "Input Mikrofon";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "Gunakan IPSW pada iPad";
 "Use an IPSW on your iPhone" = "Gunakan IPSW pada iPhone";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "Gunakan Papan Kekunci USB untuk macOS Monterey. Versi macOS yang lebih baru menyokong peranti papan kekunci Mac.";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "Gunakan Tetikus USB untuk macOS Monterey. Versi macOS yang lebih baru menyokong peranti trackpad Mac.";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "Gunakan Tetikus USB untuk macOS Monterey. Versi macOS yang lebih baru menyokong peranti trackpad Mac. Magic Trackpad (eksperimen) membentangkan trackpad berbilang sentuh yang disokong iPad kepada macOS sebagai Magic Trackpad sebenar, supaya macOS mengenali gerak isyaratnya sendiri.";
 "Validation failed: %@" = "Pengesahan gagal: %@";
 "Verify your iPad has sufficient free storage and try again." = "Pastikan iPad mempunyai ruang kosong yang mencukupi, kemudian cuba lagi.";
 "Verify your iPhone has sufficient free storage and try again." = "Pastikan iPhone mempunyai ruang kosong yang mencukupi, kemudian cuba lagi.";

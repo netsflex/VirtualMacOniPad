@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Phím tắt Mac";
 "Mac Trackpad" = "Bàn di chuột Mac";
 "macOS Installed" = "Đã cài đặt macOS";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (cử chỉ gốc, thử nghiệm)";
 "Memory" = "Bộ nhớ";
 "Metal BC Support" = "Hỗ trợ Metal BC";
 "Microphone Input" = "Đầu vào micrô";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "Sử dụng IPSW trên iPad của bạn";
 "Use an IPSW on your iPhone" = "Sử dụng IPSW trên iPhone của bạn";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "Với macOS Monterey, hãy sử dụng bàn phím USB. Các phiên bản macOS mới hơn hỗ trợ bàn phím Mac.";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "Với macOS Monterey, hãy sử dụng chuột USB. Các phiên bản macOS mới hơn hỗ trợ bàn di chuột Mac.";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "Với macOS Monterey, hãy sử dụng chuột USB. Các phiên bản macOS mới hơn hỗ trợ bàn di chuột Mac. Magic Trackpad (thử nghiệm) cung cấp bàn di chuột đa chạm được iPad hỗ trợ cho macOS như một Magic Trackpad thật, để macOS tự nhận dạng các cử chỉ.";
 "Validation failed: %@" = "Xác thực không thành công: %@";
 "Verify your iPad has sufficient free storage and try again." = "Hãy kiểm tra iPad của bạn có đủ dung lượng trống rồi thử lại.";
 "Verify your iPhone has sufficient free storage and try again." = "Hãy kiểm tra iPhone của bạn có đủ dung lượng trống rồi thử lại.";

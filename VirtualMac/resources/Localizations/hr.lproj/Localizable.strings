@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Tipkovnički prečaci za Mac";
 "Mac Trackpad" = "Mac dodirna ploha";
 "macOS Installed" = "macOS je instaliran";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (izvorne geste, eksperimentalno)";
 "Memory" = "Memorija";
 "Metal BC Support" = "Podrška za Metal BC";
 "Microphone Input" = "Ulaz mikrofona";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "Upotrijebi IPSW na iPadu";
 "Use an IPSW on your iPhone" = "Upotrijebi IPSW na iPhoneu";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "Za macOS Monterey upotrijebite USB tipkovnicu. Novije verzije macOS-a podržavaju Mac tipkovnicu.";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "Za macOS Monterey upotrijebite USB miš. Novije verzije macOS-a podržavaju Mac dodirnu plohu.";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "Za macOS Monterey upotrijebite USB miš. Novije verzije macOS-a podržavaju Mac dodirnu plohu. Magic Trackpad (eksperimentalno) predstavlja macOS-u dodirnu plohu s više dodira koju iPad podržava kao pravi Magic Trackpad, pa macOS sam prepoznaje geste.";
 "Validation failed: %@" = "Provjera valjanosti nije uspjela: %@";
 "Verify your iPad has sufficient free storage and try again." = "Provjerite ima li iPad dovoljno slobodnog prostora i pokušajte ponovno.";
 "Verify your iPhone has sufficient free storage and try again." = "Provjerite ima li iPhone dovoljno slobodnog prostora i pokušajte ponovno.";

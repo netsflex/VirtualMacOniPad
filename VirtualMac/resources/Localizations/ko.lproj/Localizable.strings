@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Mac 키보드 단축키";
 "Mac Trackpad" = "Mac 트랙패드";
 "macOS Installed" = "macOS 설치 완료";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad(네이티브 제스처, 실험적)";
 "Memory" = "메모리";
 "Metal BC Support" = "Metal BC 지원";
 "Microphone Input" = "마이크 입력";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "iPad에 있는 IPSW 사용";
 "Use an IPSW on your iPhone" = "iPhone에 있는 IPSW 사용";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "macOS Monterey에서는 USB 키보드를 사용하십시오. 최신 게스트는 Mac 키보드 기기를 지원합니다.";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "macOS Monterey에서는 USB 마우스를 사용하십시오. 최신 게스트는 Mac 트랙패드 기기를 지원합니다.";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "macOS Monterey에서는 USB 마우스를 사용하십시오. 최신 게스트는 Mac 트랙패드 기기를 지원합니다. Magic Trackpad(실험적)는 iPad가 지원하는 멀티 터치 트랙패드를 실제 Magic Trackpad로 macOS에 제공하여 macOS가 제스처를 직접 인식하게 합니다.";
 "Validation failed: %@" = "검증 실패: %@";
 "Verify your iPad has sufficient free storage and try again." = "iPad에 충분한 여유 공간이 있는지 확인하고 다시 시도하십시오.";
 "Verify your iPhone has sufficient free storage and try again." = "iPhone에 충분한 여유 공간이 있는지 확인하고 다시 시도하십시오.";

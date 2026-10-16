@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Comenzi rapide de la tastatură Mac";
 "Mac Trackpad" = "Trackpad Mac";
 "macOS Installed" = "macOS installato";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (gesturi native, experimental)";
 "Memory" = "Memorie";
 "Metal BC Support" = "Compatibilitate Metal BC";
 "Microphone Input" = "Intrare microfon";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "Folosiți un IPSW de pe iPad";
 "Use an IPSW on your iPhone" = "Folosiți un IPSW de pe iPhone";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "Pentru macOS Monterey, folosiți tastatura USB. Sistemele mai noi acceptă dispozitivul tastatură Mac.";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "Pentru macOS Monterey, folosiți mouse-ul USB. Sistemele mai noi acceptă dispozitivul trackpad Mac.";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "Pentru macOS Monterey, folosiți mouse-ul USB. Sistemele mai noi acceptă dispozitivul trackpad Mac. Magic Trackpad (experimental) prezintă către macOS un trackpad multi-touch acceptat de iPad ca un Magic Trackpad real, astfel încât macOS să recunoască singur gesturile.";
 "Validation failed: %@" = "Validarea a eșuat: %@";
 "Verify your iPad has sufficient free storage and try again." = "Verificați dacă iPad-ul are suficient spațiu liber și încercați din nou.";
 "Verify your iPhone has sufficient free storage and try again." = "Verificați dacă iPhone-ul are suficient spațiu liber și încercați din nou.";

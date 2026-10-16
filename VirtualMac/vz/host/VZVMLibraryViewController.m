@@ -976,9 +976,11 @@ void VZRemovePaths(NSArray<NSString *> *paths)
             ? VZL(@"USB Keyboard") : VZL(@"Mac Keyboard");
     } else if (indexPath.section == 3 && indexPath.row == 1) {
         cell.textLabel.text = VZL(@"Pointing Device");
+        NSString *pointing = self.options[VZPointingDeviceKey];
         cell.detailTextLabel.text =
-            [self.options[VZPointingDeviceKey] isEqualToString:@"USBMouse"]
-            ? VZL(@"USB Mouse") : VZL(@"Mac Trackpad");
+            [pointing isEqualToString:@"USBMouse"] ? VZL(@"USB Mouse")
+            : [pointing isEqualToString:@"MagicTrackpad"] ? VZL(@"Magic Trackpad")
+            : VZL(@"Mac Trackpad");
     } else if (indexPath.section == 3) {
         NSString *fullTitle = VZL(@"Apple Pencil Pressure and Tilt");
         CGFloat available = MAX(CGRectGetWidth(tableView.bounds) - 147.0,
@@ -1397,10 +1399,12 @@ void VZRemovePaths(NSArray<NSString *> *paths)
             fromCell:[tableView cellForRowAtIndexPath:indexPath]];
     } else if (indexPath.section == 3 && indexPath.row == 1) {
         [self chooseTitle:VZL(@"Pointing Device") message:
-            VZL(@"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device.")
+            VZL(@"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself.")
             choices:@[
             @{@"title": VZL(@"Mac Trackpad"), @"value": @"MacTrackpad"},
             @{@"title": VZL(@"USB Mouse"), @"value": @"USBMouse"},
+            @{@"title": VZL(@"Magic Trackpad (Native Gestures, Experimental)"),
+              @"value": @"MagicTrackpad"},
             ] key:VZPointingDeviceKey
             fromCell:[tableView cellForRowAtIndexPath:indexPath]];
     } else if (indexPath.section == 4 && indexPath.row == 0) {

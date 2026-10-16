@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Mac Keyboard Shortcuts";
 "Mac Trackpad" = "Mac Trackpad";
 "macOS Installed" = "macOS Installed";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (Native Gestures, Experimental)";
 "Memory" = "Memory";
 "Metal BC Support" = "Metal BC Support";
 "Microphone Input" = "Microphone Input";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "Use an IPSW on your iPad";
 "Use an IPSW on your iPhone" = "Use an IPSW on your iPhone";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device.";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device.";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself.";
 "Validation failed: %@" = "Validation failed: %@";
 "Verify your iPad has sufficient free storage and try again." = "Verify your iPad has sufficient free storage and try again.";
 "Verify your iPhone has sufficient free storage and try again." = "Verify your iPhone has sufficient free storage and try again.";

@@ -1,11 +1,13 @@
-// Experimental, opt-in with the usb-trackpad-relay diagnostics flag: relay
-// the iPad trackpad's fingers to the guest's emulated USB Magic Trackpad.
+// Experimental "Magic Trackpad" pointing device: relay the iPad trackpad's
+// fingers to the guest's emulated USB Magic Trackpad.
 //
 // iPadOS delivers trackpad pointer events with a digitizer child that holds
 // one child per finger. A HID monitor client reads those fingers and sends
 // them to the framework's USB touch screen as _VZMultiTouchEvent; the VMM hook
 // (usb_trackpad_proto.inc) turns them into Magic Trackpad frames. The
-// trackpad's click travels as a touch with index 63.
+// trackpad's click travels as a touch with index 63. The touch screen and
+// mice keep using the Mac trackpad device; the monitor also notes when a
+// mouse moves so the app can tell which device its UIKit events came from.
 #import <Foundation/Foundation.h>
 #import <QuartzCore/QuartzCore.h>
 #import <UIKit/UIKit.h>
@@ -33,13 +35,11 @@ extern CFArrayRef IOHIDEventGetChildren(IOHIDEventRef);
 extern CFIndex IOHIDEventGetIntegerValue(IOHIDEventRef, uint32_t);
 extern double IOHIDEventGetFloatValue(IOHIDEventRef, uint32_t);
 
-enum { kMonitorClient = 1, kDigitizerEvent = 11, kPointerEvent = 17 };
+enum { kMonitorClient = 1, kScrollEvent = 6, kDigitizerEvent = 11, kPointerEvent = 17 };
 #define FIELD(type, index) (((uint32_t)(type) << 16) | (index))
 enum { kButtonMask = 3, kIdentity = 6, kRange = 8, kTouch = 9 };
 enum { kClickTouchIndex = 63, kMovedPhase = 1 };
 
-static const char kRelayFlag[] =
-    "/var/mobile/Media/VirtualMac/Diagnostics/usb-trackpad-relay";
 static const char kRelayLog[] =
     "/var/mobile/Media/VirtualMac/Diagnostics/usb-trackpad-relay.log";
 
@@ -47,6 +47,10 @@ static IOHIDEventSystemClientRef gClient;
 static id gTouchDevice;
 static uint64_t gTrackpadSender;
 static uint64_t gEventCount;
+static CFTimeInterval gLastTrackpadTime, gLastMouseTime;
+static void (*gMouseMoved)(double dx, double dy);
+static void (*gMouseButtons)(long buttons);
+static long gMouseButtonState;
 
 static void relayLog(const char *format, ...) {
     FILE *log = fopen(kRelayLog, "a");
@@ -122,11 +126,31 @@ static void scheduleLiftTimeout(void) {
 static void relayCallback(void *target, void *refcon, IOHIDServiceClientRef service,
                           IOHIDEventRef event) {
     (void)target; (void)refcon; (void)service;
-    if (!gTouchDevice || IOHIDEventGetType(event) != kPointerEvent) return;
+    uint32_t type = IOHIDEventGetType(event);
+    if (!gTouchDevice || (type != kPointerEvent && type != kScrollEvent)) return;
     uint64_t sender = IOHIDEventGetSenderID(event);
-    IOHIDEventRef hand = digitizerChild(event);
-    // Pointer events from other senders are a mouse and stay on the normal path.
-    if (!hand && sender != gTrackpadSender) return;
+    IOHIDEventRef hand = type == kPointerEvent ? digitizerChild(event) : NULL;
+    // Pointer and scroll events from other senders are a mouse.
+    if (!hand && sender != gTrackpadSender) {
+        gLastMouseTime = CACurrentMediaTime();
+        // The iPad pointer is locked, so UIKit no longer reports where a mouse
+        // is or reliably delivers its clicks, and a mouse need not be a
+        // GCMouse. Hand its relative motion and buttons to the app.
+        if (type == kPointerEvent && gMouseMoved) {
+            double dx = IOHIDEventGetFloatValue(event, FIELD(kPointerEvent, 0));
+            double dy = IOHIDEventGetFloatValue(event, FIELD(kPointerEvent, 1));
+            if (dx || dy) gMouseMoved(dx, dy);
+            long buttons = (long)(IOHIDEventGetIntegerValue(event,
+                FIELD(kPointerEvent, kButtonMask)) & 7);
+            if (buttons != gMouseButtonState && gMouseButtons) {
+                gMouseButtonState = buttons;
+                gMouseButtons(buttons);
+            }
+        }
+        return;
+    }
+    gLastTrackpadTime = CACurrentMediaTime();
+    if (type != kPointerEvent) return;
     CFIndex buttons = IOHIDEventGetIntegerValue(event, FIELD(kPointerEvent, kButtonMask));
     if (!hand) {
         if (!(buttons & 7) == !(gButtons & 7)) return;
@@ -186,13 +210,22 @@ static void updatePointerLock(void) {
     }
 }
 
+// The app moves its absolute pointer by a mouse's relative motion and
+// presses its buttons.
+void VZUSBTrackpadRelaySetMouseHandler(void (*moved)(double dx, double dy),
+                                       void (*buttons)(long buttons)) {
+    gMouseMoved = moved;
+    gMouseButtons = buttons;
+}
+
 void VZUSBTrackpadRelayStart(id virtualMachine) {
-    if (gClient || access(kRelayFlag, F_OK)) return;
+    if (gClient) return;
     id devices = [virtualMachine respondsToSelector:sel_registerName("_multiTouchDevices")]
         ? ((id(*)(id, SEL))objc_msgSend)(virtualMachine, sel_registerName("_multiTouchDevices"))
         : nil;
     gTouchDevice = [[devices firstObject] retain];
-    gClient = gTouchDevice ? IOHIDEventSystemClientCreateWithType(NULL, kMonitorClient, NULL) : NULL;
+    if (!gTouchDevice) return;  // another pointing device was chosen
+    gClient = IOHIDEventSystemClientCreateWithType(NULL, kMonitorClient, NULL);
     relayLog("start device=%s client=%p",
              [[gTouchDevice description] UTF8String] ?: "(none)", gClient);
     if (!gClient) { [gTouchDevice release]; gTouchDevice = nil; return; }
@@ -213,16 +246,27 @@ void VZUSBTrackpadRelayStop(void) {
     gFingerCount = 0;
     gDownMask = 0;
     gButtons = 0;
+    gLastTrackpadTime = gLastMouseTime = 0;
+    gMouseButtonState = 0;
     gFingerGeneration++;
     dispatch_async(dispatch_get_main_queue(), ^{ updatePointerLock(); });
     relayLog("stop after %llu events", (unsigned long long)gEventCount);
 }
 
-// While the relay runs, the emulated trackpad drives the guest pointer and
-// macOS makes its own scroll and gesture events, so the app's pointer, scroll
-// and gesture events would double them.
 BOOL VZUSBTrackpadRelayActive(void) {
     return gClient != NULL;
+}
+
+// When the iPad trackpad and a mouse last produced events, for the app to
+// decide which device its own UIKit pointer, scroll and gesture events came
+// from: the emulated trackpad already gives macOS the trackpad's, so those
+// would arrive twice.
+CFTimeInterval VZUSBTrackpadRelayLastTrackpadTime(void) {
+    return gLastTrackpadTime;
+}
+
+CFTimeInterval VZUSBTrackpadRelayLastMouseTime(void) {
+    return gLastMouseTime;
 }
 
 void VZUSBTrackpadRelayNote(NSString *message) {

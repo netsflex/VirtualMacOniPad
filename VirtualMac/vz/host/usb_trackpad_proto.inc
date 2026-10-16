@@ -1,8 +1,9 @@
 // Experimental, opt-in: present the framework's USB touch screen to the guest
 // as a USB Magic Trackpad 2, and turn the touches the app sends it (see
 // VZUSBTrackpadRelay.m) into Magic Trackpad "compact V7" frames so macOS
-// drives its native trackpad gestures. Enabled only by usbTrackpadProtoFlag,
-// and only in the one reviewed VMM build whose layout is described below.
+// drives its native trackpad gestures. Installed only in the one reviewed VMM
+// build whose layout is described below; the device exists only when the app
+// chose the Magic Trackpad pointing device.
 //
 // VzCore::Hardware::UsbTouchScreen in VMM UUID BAC451C3-70AB-3259-B77E-91F5673D15E1:
 //   vtable address point 0x1001b2cc8; slot n at +8n, signed IA with the slot
@@ -23,8 +24,6 @@
 #include <ptrauth.h>
 #include <uuid/uuid.h>
 
-static const char usbTrackpadProtoFlag[] =
-    "/var/mobile/Media/VirtualMac/Diagnostics/usb-trackpad-proto";
 
 static const uint8_t usbTrackpadVMMUUID[16] = {
     0xBA, 0xC4, 0x51, 0xC3, 0x70, 0xAB, 0x32, 0x59,
@@ -441,20 +440,51 @@ static uint32_t usb_trackpad_milliseconds(void) {
     return (uint32_t)((now - start) * timebase.numer / timebase.denom / 1000000);
 }
 
-// The guest derives finger velocity from the header timestamp, so it must
-// advance by at least the 8 ms report interval with every delivered frame.
-// Stamp frames when they are delivered.
-static void usb_trackpad_stamp(uint8_t *frame) {
-    static uint32_t last;
-    uint32_t now = usb_trackpad_milliseconds();
-    // Frames delivered back to back (queued while the guest was busy) must
-    // still be a report interval apart, or the guest sees a burst of motion
-    // in 1 ms and scrolls with a huge velocity.
-    if (now < last + 8) now = last + 8;
-    last = now;
+// The guest derives finger velocity from the header timestamp, so it must be
+// the real time of the report, and a real trackpad reports at most every
+// 8 ms: frames delivered back to back (queued while the guest was busy)
+// would otherwise show a burst of motion in 1 ms and fling a scroll. Deliver
+// at most one frame per interval; motion arriving meanwhile replaces the
+// queued frame.
+enum { kReportIntervalMs = 8 };
+static uint32_t usbTrackpadLastDelivery;  // accessed atomically
+
+static void usb_trackpad_stamp(uint8_t *frame, uint32_t now) {
     frame[1] = (uint8_t)((frame[1] & 0x07) | ((now & 0x1f) << 3));
     frame[2] = (now >> 5) & 0xff;
     frame[3] = (now >> 13) & 0xff;
+}
+
+// Claim the next report slot. On failure *wait holds the milliseconds left.
+static bool usb_trackpad_claim_slot(uint32_t *stamp, uint32_t *previous, uint32_t *wait) {
+    uint32_t now = usb_trackpad_milliseconds();
+    uint32_t last = __atomic_load_n(&usbTrackpadLastDelivery, __ATOMIC_ACQUIRE);
+    if (last && now - last < kReportIntervalMs) {
+        *wait = kReportIntervalMs - (now - last);
+        return false;
+    }
+    if (now <= last) now = last + 1;
+    if (!__atomic_compare_exchange_n(&usbTrackpadLastDelivery, &last, now, false,
+                                     __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+        *wait = 1;
+        return false;
+    }
+    *stamp = now;
+    *previous = last;
+    return true;
+}
+
+// Give a claimed slot back when its frame could not be delivered.
+static void usb_trackpad_release_slot(uint32_t stamp, uint32_t previous) {
+    __atomic_compare_exchange_n(&usbTrackpadLastDelivery, &stamp, previous, false,
+                                __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
+}
+
+static bool usb_trackpad_queue_empty(void) {
+    os_unfair_lock_lock(&usbTrackpadQueueLock);
+    bool empty = usbTrackpadQueueCount == 0;
+    os_unfair_lock_unlock(&usbTrackpadQueueLock);
+    return empty;
 }
 
 static bool usb_trackpad_dequeue(VZTrackpadFrame *frame) {
@@ -462,7 +492,6 @@ static bool usb_trackpad_dequeue(VZTrackpadFrame *frame) {
     bool found = usbTrackpadQueueCount > 0;
     if (found) {
         *frame = usbTrackpadQueue[usbTrackpadQueueHead];
-        usb_trackpad_stamp(frame->bytes);
         usbTrackpadQueueHead = (usbTrackpadQueueHead + 1) % kFrameQueueLength;
         usbTrackpadQueueCount--;
     }
@@ -470,22 +499,50 @@ static bool usb_trackpad_dequeue(VZTrackpadFrame *frame) {
     return found;
 }
 
-// Deliver queued frames while the guest has transfers pending.
+static void usb_trackpad_put_back(const VZTrackpadFrame *frame) {
+    os_unfair_lock_lock(&usbTrackpadQueueLock);
+    usbTrackpadQueueHead = (usbTrackpadQueueHead + kFrameQueueLength - 1) % kFrameQueueLength;
+    usbTrackpadQueue[usbTrackpadQueueHead] = *frame;
+    usbTrackpadQueueCount++;
+    os_unfair_lock_unlock(&usbTrackpadQueueLock);
+}
+
+static void usb_trackpad_flush(void *device);
+
+static void usb_trackpad_schedule_flush(void *device, uint32_t wait) {
+    static int scheduled;
+    static dispatch_queue_t queue;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ queue = dispatch_queue_create("usb-trackpad-pacing", DISPATCH_QUEUE_SERIAL); });
+    if (__atomic_exchange_n(&scheduled, 1, __ATOMIC_ACQ_REL)) return;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)wait * NSEC_PER_MSEC), queue, ^{
+        __atomic_store_n(&scheduled, 0, __ATOMIC_RELEASE);
+        usb_trackpad_flush(device);
+    });
+}
+
+// Deliver queued frames, one per report interval, while the guest has a
+// transfer pending; without one, slot 17 delivers on the guest's next poll.
 static void usb_trackpad_flush(void *device) {
     VZTrackpadFrame frame;
-    while (usb_trackpad_dequeue(&frame)) {
+    uint32_t stamp, previous, wait;
+    while (!usb_trackpad_queue_empty()) {
+        if (!usb_trackpad_claim_slot(&stamp, &previous, &wait)) {
+            usb_trackpad_schedule_flush(device, wait);
+            return;
+        }
+        if (!usb_trackpad_dequeue(&frame)) {
+            usb_trackpad_release_slot(stamp, previous);
+            return;
+        }
+        usb_trackpad_stamp(frame.bytes, stamp);
         if (!usb_trackpad_complete_pending(device, frame.bytes, frame.length)) {
-            // No transfer pending: put the frame back at the front.
-            os_unfair_lock_lock(&usbTrackpadQueueLock);
-            usbTrackpadQueueHead = (usbTrackpadQueueHead + kFrameQueueLength - 1) % kFrameQueueLength;
-            usbTrackpadQueue[usbTrackpadQueueHead] = frame;
-            usbTrackpadQueueCount++;
-            os_unfair_lock_unlock(&usbTrackpadQueueLock);
+            usb_trackpad_put_back(&frame);
+            usb_trackpad_release_slot(stamp, previous);
             return;
         }
     }
 }
-
 
 // Normalized iPad position (origin top left) to the device's units, from the
 // mapping measured with MultitouchSupport in the guest: x' = (2x + 5978) / 12480
@@ -591,7 +648,17 @@ static bool usb_trackpad_fetch_report(void *self, VZUsbTransfer *t) {
     if ((calls++ % 2000) == 0)
         logf_("[USBTrackpad] fetch_report call #%llu enabled=%d", (unsigned long long)calls, gUsbTrackpadEnabled);
     VZTrackpadFrame frame;
-    if (!gUsbTrackpadEnabled || !usb_trackpad_dequeue(&frame)) return false;
+    uint32_t stamp, previous, wait;
+    if (!gUsbTrackpadEnabled || usb_trackpad_queue_empty()) return false;
+    if (!usb_trackpad_claim_slot(&stamp, &previous, &wait)) {
+        usb_trackpad_schedule_flush(self, wait);  // completes this transfer
+        return false;
+    }
+    if (!usb_trackpad_dequeue(&frame)) {
+        usb_trackpad_release_slot(stamp, previous);
+        return false;
+    }
+    usb_trackpad_stamp(frame.bytes, stamp);
     usb_trackpad_write(t, frame.bytes, frame.length);
     return true;
 }
@@ -656,7 +723,6 @@ static void usb_trackpad_install_slot(unsigned slot, uint16_t diversifier, void 
 }
 
 static void usb_trackpad_proto_install(void) {
-    if (access(usbTrackpadProtoFlag, F_OK)) return;
     if (!usb_trackpad_layout_matches()) {
         logf_("[USBTrackpad] not installed: unexpected VMM build");
         return;

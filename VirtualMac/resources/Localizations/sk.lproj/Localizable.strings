@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Klávesové skratky pre Mac";
 "Mac Trackpad" = "Trackpad Mac";
 "macOS Installed" = "macOS je nainstalován";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (natívne gestá, experimentálne)";
 "Memory" = "Pamäť";
 "Metal BC Support" = "Podpora Metal BC";
 "Microphone Input" = "Vstup mikrofonu";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "Použiť IPSW v iPade";
 "Use an IPSW on your iPhone" = "Použiť IPSW v iPhone";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "V macOS Monterey použite USB klávesnicu. Novšie verzie macOS podporujú klávesnicu Mac.";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "V macOS Monterey použite USB myš. Novšie verzie macOS podporujú trackpad Mac.";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "V macOS Monterey použite USB myš. Novšie verzie macOS podporujú trackpad Mac. Magic Trackpad (experimentálne) odovzdá systému macOS viacdotykový trackpad podporovaný iPadom ako skutočný Magic Trackpad, takže gestá rozpoznáva sám macOS.";
 "Validation failed: %@" = "Overenie zlyhalo: %@";
 "Verify your iPad has sufficient free storage and try again." = "Overte, či je na iPade dostatok voľného miesta, a skúste to znova.";
 "Verify your iPhone has sufficient free storage and try again." = "Overte, či je na iPhone dostatok voľného miesta, a skúste to znova.";

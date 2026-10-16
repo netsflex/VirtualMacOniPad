@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Сочетания клавиш Mac";
 "Mac Trackpad" = "Трекпад Mac";
 "macOS Installed" = "macOS установлена";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (нативные жесты, экспериментально)";
 "Memory" = "Память";
 "Metal BC Support" = "Поддержка Metal BC";
 "Microphone Input" = "Вход микрофона";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "Использовать IPSW на iPad";
 "Use an IPSW on your iPhone" = "Использовать IPSW на iPhone";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "Для macOS Monterey используйте USB-клавиатуру. Более новые версии macOS поддерживают клавиатуру Mac.";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "Для macOS Monterey используйте USB-мышь. Более новые версии macOS поддерживают трекпад Mac.";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "Для macOS Monterey используйте USB-мышь. Более новые версии macOS поддерживают трекпад Mac. Magic Trackpad (экспериментально) передает в macOS поддерживаемый iPad мультисенсорный трекпад как настоящий Magic Trackpad, и macOS сама распознает жесты.";
 "Validation failed: %@" = "Ошибка проверки: %@";
 "Verify your iPad has sufficient free storage and try again." = "Убедитесь, что на iPad достаточно свободного места, и повторите попытку.";
 "Verify your iPhone has sufficient free storage and try again." = "Убедитесь, что на iPhone достаточно свободного места, и повторите попытку.";

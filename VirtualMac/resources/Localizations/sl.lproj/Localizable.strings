@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Bližnjice na tipkovnici Mac";
 "Mac Trackpad" = "Sledilna ploščica Mac";
 "macOS Installed" = "macOS je nameščen";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (izvorne kretnje, preizkusno)";
 "Memory" = "Pomnilnik";
 "Metal BC Support" = "Podpora za Metal BC";
 "Microphone Input" = "Vhod mikrofona";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "Uporabi IPSW v iPadu";
 "Use an IPSW on your iPhone" = "Uporabi IPSW v iPhonu";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "Za macOS Monterey uporabite tipkovnico USB. Novejši gostujoči sistemi podpirajo napravo tipkovnice Mac.";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "Za macOS Monterey uporabite miško USB. Novejši gostujoči sistemi podpirajo napravo sledilne ploščice Mac.";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "Za macOS Monterey uporabite miško USB. Novejši gostujoči sistemi podpirajo napravo sledilne ploščice Mac. Magic Trackpad (preizkusno) sistemu macOS predstavi sledilno ploščico z večdotikom, ki jo podpira iPad, kot pravi Magic Trackpad, zato macOS sam prepoznava kretnje.";
 "Validation failed: %@" = "Preverjanje ni uspelo: %@";
 "Verify your iPad has sufficient free storage and try again." = "Preverite, ali ima iPad dovolj prostega prostora, in poskusite znova.";
 "Verify your iPhone has sufficient free storage and try again." = "Preverite, ali ima iPhone dovolj prostega prostora, in poskusite znova.";

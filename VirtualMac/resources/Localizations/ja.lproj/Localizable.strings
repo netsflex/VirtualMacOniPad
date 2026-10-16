@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Macのキーボードショートカット";
 "Mac Trackpad" = "Macトラックパッド";
 "macOS Installed" = "macOSのインストール完了";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad（ネイティブジェスチャ、実験的）";
 "Memory" = "メモリ";
 "Metal BC Support" = "Metal BCサポート";
 "Microphone Input" = "マイク入力";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "iPad上のIPSWを使用";
 "Use an IPSW on your iPhone" = "iPhone上のIPSWを使用";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "macOS MontereyではUSBキーボードを使用してください。新しいゲストはMacキーボードデバイスに対応しています。";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "macOS MontereyではUSBマウスを使用してください。新しいゲストはMacトラックパッドデバイスに対応しています。";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "macOS MontereyではUSBマウスを使用してください。新しいゲストはMacトラックパッドデバイスに対応しています。Magic Trackpad（実験的）は、iPadが対応するマルチタッチトラックパッドを本物のMagic TrackpadとしてmacOSに渡し、ジェスチャをmacOS自身に認識させます。";
 "Validation failed: %@" = "検証に失敗しました：%@";
 "Verify your iPad has sufficient free storage and try again." = "iPadに十分な空き容量があることを確認して、もう一度お試しください。";
 "Verify your iPhone has sufficient free storage and try again." = "iPhoneに十分な空き容量があることを確認して、もう一度お試しください。";

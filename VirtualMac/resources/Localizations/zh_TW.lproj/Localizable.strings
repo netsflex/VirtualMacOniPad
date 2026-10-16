@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Mac鍵盤快速鍵";
 "Mac Trackpad" = "Mac觸控板";
 "macOS Installed" = "macOS已安裝";
+"Magic Trackpad" = "巧控板";
+"Magic Trackpad (Native Gestures, Experimental)" = "巧控板（原生手勢，實驗性）";
 "Memory" = "記憶體";
 "Metal BC Support" = "Metal BC支援";
 "Microphone Input" = "麥克風輸入";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "使用iPad上的IPSW";
 "Use an IPSW on your iPhone" = "使用iPhone上的IPSW";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "在macOS Monterey中，請使用USB鍵盤。較新版本的macOS支援Mac鍵盤裝置。";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "在macOS Monterey中，請使用USB滑鼠。較新版本的macOS支援Mac觸控板裝置。";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "在macOS Monterey中，請使用USB滑鼠。較新版本的macOS支援Mac觸控板裝置。巧控板（實驗性）會將iPad支援的多點觸控板以真實巧控板的身分交給macOS自行辨識手勢。";
 "Validation failed: %@" = "驗證失敗：%@";
 "Verify your iPad has sufficient free storage and try again." = "請確認你的iPad有足夠的可用儲存空間，然後重試。";
 "Verify your iPhone has sufficient free storage and try again." = "請確認你的iPhone有足夠的可用儲存空間，然後重試。";

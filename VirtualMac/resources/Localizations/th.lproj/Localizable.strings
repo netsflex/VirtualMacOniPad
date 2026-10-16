@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "แป้นพิมพ์ลัด Mac";
 "Mac Trackpad" = "แทร็คแพด Mac";
 "macOS Installed" = "ติดตั้ง macOS แล้ว";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (ท่าทางแบบเนทีฟ, ทดลอง)";
 "Memory" = "หน่วยความจำ";
 "Metal BC Support" = "รองรับ Metal BC";
 "Microphone Input" = "สัญญาณไมโครโฟนเข้า";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "ใช้ IPSW บน iPad";
 "Use an IPSW on your iPhone" = "ใช้ IPSW บน iPhone";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "ใช้แป้นพิมพ์ USB สำหรับ macOS Monterey ระบบแขกรุ่นใหม่รองรับอุปกรณ์แป้นพิมพ์ Mac";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "ใช้เมาส์ USB สำหรับ macOS Monterey ระบบแขกรุ่นใหม่รองรับอุปกรณ์แทร็คแพด Mac";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "ใช้เมาส์ USB สำหรับ macOS Monterey ระบบแขกรุ่นใหม่รองรับอุปกรณ์แทร็คแพด Mac Magic Trackpad (ทดลอง) ส่งแทร็คแพดมัลติทัชที่ iPad รองรับให้ macOS ในฐานะ Magic Trackpad จริง เพื่อให้ macOS จดจำท่าทางเอง";
 "Validation failed: %@" = "การตรวจสอบไม่สำเร็จ: %@";
 "Verify your iPad has sufficient free storage and try again." = "ตรวจสอบว่า iPad มีพื้นที่ว่างเพียงพอแล้วลองอีกครั้ง";
 "Verify your iPhone has sufficient free storage and try again." = "ตรวจสอบว่า iPhone มีพื้นที่ว่างเพียงพอแล้วลองอีกครั้ง";

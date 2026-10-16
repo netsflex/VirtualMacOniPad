@@ -18,11 +18,15 @@
 #import "VZGuestRuntimePolicy.h"
 #import "VZTrackpadScrollBridge.h"
 
-// Experimental Magic Trackpad relay (VZUSBTrackpadRelay.m).
+// Experimental Magic Trackpad pointing device (VZUSBTrackpadRelay.m).
 extern void VZUSBTrackpadRelayStart(id virtualMachine);
 extern void VZUSBTrackpadRelayStop(void);
 extern BOOL VZUSBTrackpadRelayActive(void);
+extern CFTimeInterval VZUSBTrackpadRelayLastTrackpadTime(void);
+extern CFTimeInterval VZUSBTrackpadRelayLastMouseTime(void);
 extern void VZUSBTrackpadRelayNote(NSString *message);
+extern void VZUSBTrackpadRelaySetMouseHandler(void (*moved)(double dx, double dy),
+                                              void (*buttons)(long buttons));
 #include <dlfcn.h>
 #include <objc/runtime.h>
 #include <objc/message.h>
@@ -462,8 +466,18 @@ static NSUInteger activePointerButtons(void) {
     return gHardwareMouseButtons | gTouchButtons;
 }
 
+static CFTimeInterval gLastDirectTouchTime;
+// The guest cursor as last reported by the display, normalized; with the
+// Magic Trackpad the guest moves it without the app knowing where.
+static CGPoint gGuestCursorNormalized;
+static BOOL gGuestCursorKnown;
+static BOOL gPointerLocked;
+static CFTimeInterval gLastMouseDrive;
+
 static void notePointerInputSource(BOOL directTouch) {
     gLastInputWasDirectTouch = directTouch;
+    if (directTouch)
+        gLastDirectTouchTime = CACurrentMediaTime();
     BOOL suppress = directTouch && !gShowCursorWhenUsingTouch;
     if (gCursorSuppressedForDirectTouch == suppress)
         return;
@@ -476,6 +490,19 @@ static void notePointerInputSource(BOOL directTouch) {
         if (show)
             updateExternalCursorForNormalizedLocation(gLastPointerLocation);
     }
+}
+
+// With the Magic Trackpad pointing device, the iPad trackpad reaches macOS
+// as an emulated Magic Trackpad, so the pointer, scroll and gesture events
+// UIKit makes from it must not be sent too. The touch screen and mice still
+// use the Mac trackpad device. HID events reach the relay before UIKit turns
+// them into gestures, so the device that moved last is the one at work.
+static BOOL magicTrackpadOwnsInput(void) {
+    if (!VZUSBTrackpadRelayActive())
+        return NO;
+    CFTimeInterval trackpad = VZUSBTrackpadRelayLastTrackpadTime();
+    return trackpad > 0 && trackpad >= gLastDirectTouchTime &&
+        trackpad >= VZUSBTrackpadRelayLastMouseTime();
 }
 
 static BOOL shouldShowStatusLabel(void) {
@@ -622,7 +649,7 @@ static CGPoint clampPointerLocation(CGPoint point, CGRect bounds) {
 static void sendPointer(CGPoint point, CGRect bounds,
                         NSUInteger pressedButtons) {
     if (!gPointingDevice || bounds.size.width <= 0 ||
-        bounds.size.height <= 0 || VZUSBTrackpadRelayActive())
+        bounds.size.height <= 0 || magicTrackpadOwnsInput())
         return;
     // gInputView covers the visible guest viewport normally, but expands to
     // the complete iPad window while mirroring. Mapping its complete bounds
@@ -682,7 +709,7 @@ static void sendIndirectPointerLocation(CGPoint hostPoint, CGRect bounds) {
 }
 
 static void sendMagnification(double magnification, NSUInteger phase) {
-    if (!gPointingDevice || VZUSBTrackpadRelayActive())
+    if (!gPointingDevice || magicTrackpadOwnsInput())
         return;
     id event = ((id(*)(id, SEL, double, NSUInteger))objc_msgSend)(
         m0(CLS("_VZMagnifyEvent"), "alloc"),
@@ -698,7 +725,7 @@ static void sendMagnification(double magnification, NSUInteger phase) {
 }
 
 static void sendRotation(double rotation, NSUInteger phase) {
-    if (!gPointingDevice || VZUSBTrackpadRelayActive())
+    if (!gPointingDevice || magicTrackpadOwnsInput())
         return;
     id event = ((id(*)(id, SEL, double, NSUInteger))objc_msgSend)(
         m0(CLS("_VZRotationEvent"), "alloc"),
@@ -714,7 +741,7 @@ static void sendRotation(double rotation, NSUInteger phase) {
 }
 
 static void sendSmartMagnification(void) {
-    if (!gPointingDevice || VZUSBTrackpadRelayActive())
+    if (!gPointingDevice || magicTrackpadOwnsInput())
         return;
     id event = NEW("_VZSmartMagnifyEvent");
     if (!event)
@@ -726,10 +753,31 @@ static void sendSmartMagnification(void) {
         printf("[VirtualMac] input smart magnify\n");
 }
 
+// A mouse is an absolute device here. After the Magic Trackpad moved the
+// guest pointer, continue from where the guest shows it instead of jumping
+// back to the mouse's last position.
+static void followGuestCursorWithMouse(void) {
+    if (VZUSBTrackpadRelayActive() && gGuestCursorKnown && gInputView &&
+        VZUSBTrackpadRelayLastTrackpadTime() > gLastMouseDrive) {
+        CGRect bounds = gInputView.bounds;
+        CGRect viewport = gExternalWindow
+            ? displayViewportRect(gDisplayPixelSize, bounds) : bounds;
+        gMouseLocation = CGPointMake(
+            viewport.origin.x + gGuestCursorNormalized.x * viewport.size.width,
+            viewport.origin.y + gGuestCursorNormalized.y * viewport.size.height);
+    }
+    gLastMouseDrive = CACurrentMediaTime();
+}
+
 static void sendMouseDelta(float deltaX, float deltaY) {
     dispatch_async(dispatch_get_main_queue(), ^{
+        // The iPad trackpad can also report through GCMouse; the emulated
+        // Magic Trackpad already moves the guest pointer for it.
+        if (magicTrackpadOwnsInput())
+            return;
         notePointerInputSource(NO);
         CGRect bounds = gInputView.bounds;
+        followGuestCursorWithMouse();
         gMouseLocation.x =
             fmin(CGRectGetMaxX(bounds), fmax(CGRectGetMinX(bounds),
                                              gMouseLocation.x + deltaX));
@@ -740,9 +788,32 @@ static void sendMouseDelta(float deltaX, float deltaY) {
     });
 }
 
+static void sendMouseButton(NSUInteger mask, BOOL pressed);
+
+// Mouse motion from HID is raw device counts. iPadOS accelerates the pointer
+// (slow motion moves less than a count, fast motion more), and the guest
+// sees an absolute device that macOS does not accelerate, so apply a
+// comparable curve here.
+static void relayMouseMoved(double dx, double dy) {
+    double size = hypot(dx, dy);
+    double gain = fmin(1.2, 0.35 + 0.08 * size);
+    // sendMouseDelta takes GameController's upward-positive y.
+    sendMouseDelta((float)(dx * gain), (float)(-dy * gain));
+}
+
+static void relayMouseButtons(long buttons) {
+    static long last;
+    for (long bit = 1; bit <= 4; bit <<= 1)
+        if ((buttons ^ last) & bit)
+            sendMouseButton((NSUInteger)bit, (buttons & bit) != 0);
+    last = buttons;
+}
+
 static void sendMouseButton(NSUInteger mask, BOOL pressed) {
     dispatch_async(dispatch_get_main_queue(), ^{
         notePointerInputSource(NO);
+        if (!magicTrackpadOwnsInput())
+            followGuestCursorWithMouse();
         if (pressed && CACurrentMediaTime() <= gSuppressSurfaceClickUntil) {
             gSuppressedHardwareMouseButtons |= mask;
             gHardwareMouseButtons &= ~mask;
@@ -786,7 +857,7 @@ static void sendScrollWheelEvent(CGVector rawDelta, CGVector acceleratedDelta,
                                  NSUInteger deviceCategory,
                                  NSUInteger phase,
                                  NSUInteger momentumPhase) {
-    if (!gPointingDevice || VZUSBTrackpadRelayActive())
+    if (!gPointingDevice || magicTrackpadOwnsInput())
         return;
     UIScreen *inputScreen = gInputView.window.screen;
     BOOL externalStageManager = inputScreen &&
@@ -1133,7 +1204,13 @@ static void installGCMouse(void) {
         // UIKit hover is the authoritative absolute path for a trackpad.
         // Some devices also appear as GCMouse; accepting both makes motion
         // jump or hit artificial edges after system UI steals the pointer.
-        if (gUIKitHoverActive)
+        // A locked pointer gets no hover events, so hover cannot be the
+        // authoritative path then.
+        if (gUIKitHoverActive && !gPointerLocked)
+            return;
+        // With the Magic Trackpad the relay reads every mouse's motion from
+        // HID, GCMouse or not.
+        if (VZUSBTrackpadRelayActive())
             return;
         sendMouseDelta(deltaX, deltaY);
     };
@@ -1141,19 +1218,22 @@ static void installGCMouse(void) {
         ^(GCControllerButtonInput *button, float value, BOOL pressed) {
         (void)button;
         (void)value;
-        sendMouseButton(1, pressed);
+        if (!VZUSBTrackpadRelayActive())
+            sendMouseButton(1, pressed);
     };
     mouse.mouseInput.rightButton.pressedChangedHandler =
         ^(GCControllerButtonInput *button, float value, BOOL pressed) {
         (void)button;
         (void)value;
-        sendMouseButton(2, pressed);
+        if (!VZUSBTrackpadRelayActive())
+            sendMouseButton(2, pressed);
     };
     mouse.mouseInput.middleButton.pressedChangedHandler =
         ^(GCControllerButtonInput *button, float value, BOOL pressed) {
         (void)button;
         (void)value;
-        sendMouseButton(4, pressed);
+        if (!VZUSBTrackpadRelayActive())
+            sendMouseButton(4, pressed);
     };
 }
 
@@ -2837,6 +2917,10 @@ static bool pencilVsockSend(uint8_t type, float pressure,
            withEvent:(UIEvent *)event
 {
     UITouch *touch = [touches anyObject];
+    // With the Magic Trackpad, trackpad clicks reach the guest as Magic
+    // Trackpad frames and mouse buttons come from HID (relayMouseButtons).
+    if (touch.type == UITouchTypeIndirectPointer && VZUSBTrackpadRelayActive())
+        return;
     if (touch)
         notePointerInputSource(touch.type == UITouchTypeDirect);
     if (touch.type == UITouchTypeDirect && [self usesDeferredDirectTouchClicks]) {
@@ -2925,6 +3009,10 @@ static bool pencilVsockSend(uint8_t type, float pressure,
            withEvent:(UIEvent *)event
 {
     UITouch *touch = [touches anyObject];
+    // With the Magic Trackpad, trackpad clicks reach the guest as Magic
+    // Trackpad frames and mouse buttons come from HID (relayMouseButtons).
+    if (touch.type == UITouchTypeIndirectPointer && VZUSBTrackpadRelayActive())
+        return;
     if (touch.type == UITouchTypeDirect && [self usesDeferredDirectTouchClicks]) {
         [self moveDeferredDirectTouches:touches withEvent:event];
         return;
@@ -3001,6 +3089,10 @@ static bool pencilVsockSend(uint8_t type, float pressure,
         }
     }
     UITouch *touch = [touches anyObject];
+    // With the Magic Trackpad, trackpad clicks reach the guest as Magic
+    // Trackpad frames and mouse buttons come from HID (relayMouseButtons).
+    if (touch.type == UITouchTypeIndirectPointer && VZUSBTrackpadRelayActive())
+        return;
     if (touch.type == UITouchTypeDirect && [self usesDeferredDirectTouchClicks]) {
         [self endDeferredDirectTouches:touches withEvent:event];
         return;
@@ -3031,6 +3123,10 @@ static bool pencilVsockSend(uint8_t type, float pressure,
                withEvent:(UIEvent *)event
 {
     UITouch *touch = [touches anyObject];
+    // With the Magic Trackpad, trackpad clicks reach the guest as Magic
+    // Trackpad frames and mouse buttons come from HID (relayMouseButtons).
+    if (touch.type == UITouchTypeIndirectPointer && VZUSBTrackpadRelayActive())
+        return;
     if (touch.type == UITouchTypeDirect && [self usesDeferredDirectTouchClicks]) {
         [self cancelDeferredDirectTouches:touches withEvent:event];
         return;
@@ -3567,7 +3663,7 @@ static void VZWriteInstallationAttempt(NSString *attemptPath, NSString *state,
 
 // While the emulated Magic Trackpad drives the guest pointer, the iPad pointer
 // must not wander to screen edges or other windows. iPadOS only grants the
-// lock to a full-screen scene.
+// lock to a full-screen scene; touches on the screen are not affected.
 - (BOOL)prefersPointerLocked
 {
     return self.isVMDisplayActive && VZUSBTrackpadRelayActive();
@@ -3577,6 +3673,9 @@ static void VZWriteInstallationAttempt(NSString *attemptPath, NSString *state,
 {
     (void)notification;
     UIPointerLockState *state = self.view.window.windowScene.pointerLockState;
+    gPointerLocked = state.isLocked;
+    if (gPointerLocked)
+        gUIKitHoverActive = NO;
     VZUSBTrackpadRelayNote([NSString stringWithFormat:
         @"pointer lock requested=%d locked=%d", self.prefersPointerLocked,
         state ? state.isLocked : -1]);
@@ -4211,6 +4310,8 @@ static void VZWriteInstallationAttempt(NSString *attemptPath, NSString *state,
     gGlobeDown = NO;
     gPointingDevice = nil;
     VZUSBTrackpadRelayStop();
+    gGuestCursorKnown = NO;
+    gLastMouseDrive = 0;
     resetScrollCoalescing();
     VZTrackpadScrollBridgeReset();
     gTouchButtons = 0;
@@ -4444,9 +4545,13 @@ static void updateCursorOverlay(VZFrameUpdateSharedPtr update) {
         // update reconciles it without the cursor jumping one frame backward.
         if (CACurrentMediaTime() - gLastPredictedCursorTime >= 0.05)
             gCursorView.frame = (CGRect){origin, size};
-        updateExternalCursorForNormalizedLocation(CGPointMake(
+        CGPoint guestNormalized = CGPointMake(
             gDisplayPixelSize.width > 0 ? guestX / gDisplayPixelSize.width : 0,
-            gDisplayPixelSize.height > 0 ? guestY / gDisplayPixelSize.height : 0));
+            gDisplayPixelSize.height > 0 ? guestY / gDisplayPixelSize.height : 0);
+        updateExternalCursorForNormalizedLocation(guestNormalized);
+        gGuestCursorNormalized = guestNormalized;
+        gGuestCursorKnown = gDisplayPixelSize.width > 0 &&
+            gDisplayPixelSize.height > 0;
         [image release];
     });
 }
@@ -5028,6 +5133,9 @@ static id makeConfiguration(NSString *bundlePath, NSDictionary *options,
         : NEW("_VZMacKeyboardConfiguration");
     NSString *pointingChoice = options[@"PointingDevice"];
     BOOL useUSBMouse = [pointingChoice isEqualToString:@"USBMouse"];
+    // The Magic Trackpad choice keeps the Mac trackpad for the touch screen
+    // and mice, and adds the iPad trackpad as an emulated USB Magic Trackpad.
+    BOOL useMagicTrackpad = [pointingChoice isEqualToString:@"MagicTrackpad"];
     id pointing = useUSBMouse
         ? NEW("VZUSBScreenCoordinatePointingDeviceConfiguration")
         : NEW("VZMacTrackpadConfiguration");
@@ -5039,23 +5147,18 @@ static id makeConfiguration(NSString *bundlePath, NSDictionary *options,
            useUSBKeyboard ? "USB Keyboard" : "Mac Keyboard",
            keyboard ? object_getClassName(keyboard) : "(unavailable)");
     printf("[VirtualMac] configured pointing device=%s class=%s\n",
-           useUSBMouse ? "USB Mouse" : "Mac Trackpad",
+           useUSBMouse ? "USB Mouse" : useMagicTrackpad
+               ? "Mac Trackpad + Magic Trackpad" : "Mac Trackpad",
            pointing ? object_getClassName(pointing) : "(unavailable)");
-    // Experimental Magic Trackpad: attach the framework's USB touch screen,
-    // which the VMM hook presents as a USB Magic Trackpad 2 (flags
-    // usb-touch-screen-test here, usb-trackpad-proto in the VMM and
-    // usb-trackpad-relay for the finger relay).
-    if (!access("/var/mobile/Media/VirtualMac/Diagnostics/usb-touch-screen-test", F_OK)) {
+    // The VMM hook presents the framework's USB touch screen as a USB Magic
+    // Trackpad 2 (usb_trackpad_proto.inc).
+    if (useMagicTrackpad &&
+        [configuration respondsToSelector:S("_setMultiTouchDevices:")]) {
         id touchScreen = NEW("_VZUSBTouchScreenConfiguration");
-        BOOL accepted = touchScreen &&
-            [configuration respondsToSelector:S("_setMultiTouchDevices:")];
-        if (accepted)
+        if (touchScreen)
             setObj(configuration, "_setMultiTouchDevices:", @[touchScreen]);
-        FILE *log = fopen("/var/mobile/Media/VirtualMac/Diagnostics/usb-touch-screen-test.log", "a");
-        if (log) {
-            fprintf(log, "configured USB touch screen=%p accepted=%d\n", touchScreen, accepted);
-            fclose(log);
-        }
+        printf("[VirtualMac] configured Magic Trackpad touch device=%s\n",
+               touchScreen ? object_getClassName(touchScreen) : "(unavailable)");
         [touchScreen release];
     }
     configureAudio(configuration, options);
@@ -5360,6 +5463,7 @@ static void startVirtualMachineWorker(UIView *container, id delegate,
            [[pointingDevices description] UTF8String]);
     gKeyboard = [keyboards firstObject];
     gPointingDevice = [pointingDevices firstObject];
+    VZUSBTrackpadRelaySetMouseHandler(relayMouseMoved, relayMouseButtons);
     VZUSBTrackpadRelayStart(gVirtualMachine);
     dumpRPCHandlers(gVirtualMachine, "after-init");
     // setFramebuffer: installs the process_frame_update handler needed by the

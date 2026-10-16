@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Mac-sneltoetsen";
 "Mac Trackpad" = "Mac-trackpad";
 "macOS Installed" = "macOS geïnstalleerd";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (systeemeigen gebaren, experimenteel)";
 "Memory" = "Geheugen";
 "Metal BC Support" = "Ondersteuning voor Metal BC";
 "Microphone Input" = "Microfooninvoer";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "Gebruik een IPSW op uw iPad";
 "Use an IPSW on your iPhone" = "Gebruik een IPSW op uw iPhone";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "Gebruik in macOS Monterey een USB-toetsenbord. Nieuwere macOS-versies ondersteunen het Mac-toetsenbord.";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "Gebruik in macOS Monterey een USB-muis. Nieuwere macOS-versies ondersteunen het Mac-trackpad.";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "Gebruik in macOS Monterey een USB-muis. Nieuwere macOS-versies ondersteunen het Mac-trackpad. Magic Trackpad (experimenteel) biedt een door de iPad ondersteund multi-touchtrackpad aan macOS aan als een echt Magic Trackpad, zodat macOS de gebaren zelf herkent.";
 "Validation failed: %@" = "Validatie mislukt: %@";
 "Verify your iPad has sufficient free storage and try again." = "Controleer of uw iPad voldoende vrije opslagruimte heeft en probeer het opnieuw.";
 "Verify your iPhone has sufficient free storage and try again." = "Controleer of uw iPhone voldoende vrije opslagruimte heeft en probeer het opnieuw.";

@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Mac-tastaturgenveje";
 "Mac Trackpad" = "Mac-pegefelt";
 "macOS Installed" = "macOS installeret";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (indbyggede bevægelser, eksperimentel)";
 "Memory" = "Hukommelse";
 "Metal BC Support" = "Understøttelse af Metal BC";
 "Microphone Input" = "Mikrofonindgang";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "Brug en IPSW på din iPad";
 "Use an IPSW on your iPhone" = "Brug en IPSW på din iPhone";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "Brug et USB-tastatur i macOS Monterey. Nyere macOS-versioner understøtter Mac-tastaturet.";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "Brug en USB-mus i macOS Monterey. Nyere macOS-versioner understøtter Mac-pegefeltet.";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "Brug en USB-mus i macOS Monterey. Nyere macOS-versioner understøtter Mac-pegefeltet. Magic Trackpad (eksperimentel) giver macOS et multi-touch-pegefelt, som iPad understøtter, som et rigtigt Magic Trackpad, så macOS selv genkender bevægelserne.";
 "Validation failed: %@" = "Validering mislykkedes: %@";
 "Verify your iPad has sufficient free storage and try again." = "Kontroller, at din iPad har tilstrækkelig ledig plads, og prøv igen.";
 "Verify your iPhone has sufficient free storage and try again." = "Kontroller, at din iPhone har tilstrækkelig ledig plads, og prøv igen.";

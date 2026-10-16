@@ -148,6 +148,8 @@
 "Mac Keyboard Shortcuts" = "Mac Klavye Kısayolları";
 "Mac Trackpad" = "Mac İzleme Dörtgeni";
 "macOS Installed" = "macOS Kuruldu";
+"Magic Trackpad" = "Magic Trackpad";
+"Magic Trackpad (Native Gestures, Experimental)" = "Magic Trackpad (yerel hareketler, deneysel)";
 "Memory" = "Bellek";
 "Metal BC Support" = "Metal BC Desteği";
 "Microphone Input" = "Mikrofon Girişi";
@@ -282,7 +284,7 @@
 "Use an IPSW on your iPad" = "iPad’inizdeki Bir IPSW’yi Kullan";
 "Use an IPSW on your iPhone" = "iPhone’unuzdaki Bir IPSW’yi Kullan";
 "Use USB Keyboard for macOS Monterey. Newer guests support the Mac keyboard device." = "macOS Monterey’de USB Klavye kullanın. Daha yeni macOS sürümleri Mac klavye aygıtını destekler.";
-"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device." = "macOS Monterey’de USB Fare kullanın. Daha yeni macOS sürümleri Mac izleme dörtgeni aygıtını destekler.";
+"Use USB Mouse for macOS Monterey. Newer guests support the Mac trackpad device. Magic Trackpad (experimental) gives macOS a multi-touch trackpad that the iPad supports as a real Magic Trackpad, so macOS recognizes its gestures itself." = "macOS Monterey’de USB Fare kullanın. Daha yeni macOS sürümleri Mac izleme dörtgeni aygıtını destekler. Magic Trackpad (deneysel), iPad’in desteklediği çoklu dokunmatik izleme dörtgenini macOS’e gerçek bir Magic Trackpad olarak sunar; hareketleri macOS kendisi tanır.";
 "Validation failed: %@" = "Doğrulama başarısız: %@";
 "Verify your iPad has sufficient free storage and try again." = "iPad’inizde yeterli boş alan olduğunu doğrulayıp yeniden deneyin.";
 "Verify your iPhone has sufficient free storage and try again." = "iPhone’unuzda yeterli boş alan olduğunu doğrulayıp yeniden deneyin.";
