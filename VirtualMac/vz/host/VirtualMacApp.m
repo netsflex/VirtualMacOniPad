@@ -17,6 +17,12 @@
 #import "VZGuestTools.h"
 #import "VZGuestRuntimePolicy.h"
 #import "VZTrackpadScrollBridge.h"
+
+// Experimental Magic Trackpad relay (VZUSBTrackpadRelay.m).
+extern void VZUSBTrackpadRelayStart(id virtualMachine);
+extern void VZUSBTrackpadRelayStop(void);
+extern BOOL VZUSBTrackpadRelayActive(void);
+extern void VZUSBTrackpadRelayNote(NSString *message);
 #include <dlfcn.h>
 #include <objc/runtime.h>
 #include <objc/message.h>
@@ -616,7 +622,7 @@ static CGPoint clampPointerLocation(CGPoint point, CGRect bounds) {
 static void sendPointer(CGPoint point, CGRect bounds,
                         NSUInteger pressedButtons) {
     if (!gPointingDevice || bounds.size.width <= 0 ||
-        bounds.size.height <= 0)
+        bounds.size.height <= 0 || VZUSBTrackpadRelayActive())
         return;
     // gInputView covers the visible guest viewport normally, but expands to
     // the complete iPad window while mirroring. Mapping its complete bounds
@@ -676,7 +682,7 @@ static void sendIndirectPointerLocation(CGPoint hostPoint, CGRect bounds) {
 }
 
 static void sendMagnification(double magnification, NSUInteger phase) {
-    if (!gPointingDevice)
+    if (!gPointingDevice || VZUSBTrackpadRelayActive())
         return;
     id event = ((id(*)(id, SEL, double, NSUInteger))objc_msgSend)(
         m0(CLS("_VZMagnifyEvent"), "alloc"),
@@ -692,7 +698,7 @@ static void sendMagnification(double magnification, NSUInteger phase) {
 }
 
 static void sendRotation(double rotation, NSUInteger phase) {
-    if (!gPointingDevice)
+    if (!gPointingDevice || VZUSBTrackpadRelayActive())
         return;
     id event = ((id(*)(id, SEL, double, NSUInteger))objc_msgSend)(
         m0(CLS("_VZRotationEvent"), "alloc"),
@@ -708,7 +714,7 @@ static void sendRotation(double rotation, NSUInteger phase) {
 }
 
 static void sendSmartMagnification(void) {
-    if (!gPointingDevice)
+    if (!gPointingDevice || VZUSBTrackpadRelayActive())
         return;
     id event = NEW("_VZSmartMagnifyEvent");
     if (!event)
@@ -780,7 +786,7 @@ static void sendScrollWheelEvent(CGVector rawDelta, CGVector acceleratedDelta,
                                  NSUInteger deviceCategory,
                                  NSUInteger phase,
                                  NSUInteger momentumPhase) {
-    if (!gPointingDevice)
+    if (!gPointingDevice || VZUSBTrackpadRelayActive())
         return;
     UIScreen *inputScreen = gInputView.window.screen;
     BOOL externalStageManager = inputScreen &&
@@ -3559,6 +3565,23 @@ static void VZWriteInstallationAttempt(NSString *attemptPath, NSString *state,
         boolForKey:VZHomeIndicatorSuppressionKey];
 }
 
+// While the emulated Magic Trackpad drives the guest pointer, the iPad pointer
+// must not wander to screen edges or other windows. iPadOS only grants the
+// lock to a full-screen scene.
+- (BOOL)prefersPointerLocked
+{
+    return self.isVMDisplayActive && VZUSBTrackpadRelayActive();
+}
+
+- (void)logPointerLockState:(NSNotification *)notification
+{
+    (void)notification;
+    UIPointerLockState *state = self.view.window.windowScene.pointerLockState;
+    VZUSBTrackpadRelayNote([NSString stringWithFormat:
+        @"pointer lock requested=%d locked=%d", self.prefersPointerLocked,
+        state ? state.isLocked : -1]);
+}
+
 - (UIRectEdge)preferredScreenEdgesDeferringSystemGestures
 {
     return self.isVMDisplayActive && [VZAppSettings.sharedSettings
@@ -3575,6 +3598,15 @@ static void VZWriteInstallationAttempt(NSString *attemptPath, NSString *state,
     [self setNeedsStatusBarAppearanceUpdate];
     [self setNeedsUpdateOfHomeIndicatorAutoHidden];
     [self setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
+    [self setNeedsUpdateOfPrefersPointerLocked];
+    static BOOL observing;
+    if (!observing) {
+        observing = YES;
+        [NSNotificationCenter.defaultCenter addObserver:self
+            selector:@selector(logPointerLockState:)
+            name:UIPointerLockStateDidChangeNotification object:nil];
+    }
+    [self logPointerLockState:nil];
 }
 
 - (void)activateVMDisplay:(BOOL)active
@@ -4178,6 +4210,7 @@ static void VZWriteInstallationAttempt(NSString *attemptPath, NSString *state,
     gShiftPressedMask = 0;
     gGlobeDown = NO;
     gPointingDevice = nil;
+    VZUSBTrackpadRelayStop();
     resetScrollCoalescing();
     VZTrackpadScrollBridgeReset();
     gTouchButtons = 0;
@@ -5008,6 +5041,23 @@ static id makeConfiguration(NSString *bundlePath, NSDictionary *options,
     printf("[VirtualMac] configured pointing device=%s class=%s\n",
            useUSBMouse ? "USB Mouse" : "Mac Trackpad",
            pointing ? object_getClassName(pointing) : "(unavailable)");
+    // Experimental Magic Trackpad: attach the framework's USB touch screen,
+    // which the VMM hook presents as a USB Magic Trackpad 2 (flags
+    // usb-touch-screen-test here, usb-trackpad-proto in the VMM and
+    // usb-trackpad-relay for the finger relay).
+    if (!access("/var/mobile/Media/VirtualMac/Diagnostics/usb-touch-screen-test", F_OK)) {
+        id touchScreen = NEW("_VZUSBTouchScreenConfiguration");
+        BOOL accepted = touchScreen &&
+            [configuration respondsToSelector:S("_setMultiTouchDevices:")];
+        if (accepted)
+            setObj(configuration, "_setMultiTouchDevices:", @[touchScreen]);
+        FILE *log = fopen("/var/mobile/Media/VirtualMac/Diagnostics/usb-touch-screen-test.log", "a");
+        if (log) {
+            fprintf(log, "configured USB touch screen=%p accepted=%d\n", touchScreen, accepted);
+            fclose(log);
+        }
+        [touchScreen release];
+    }
     configureAudio(configuration, options);
     configureVideoToolbox(configuration, options);
     configureNetwork(configuration, options);
@@ -5310,6 +5360,7 @@ static void startVirtualMachineWorker(UIView *container, id delegate,
            [[pointingDevices description] UTF8String]);
     gKeyboard = [keyboards firstObject];
     gPointingDevice = [pointingDevices firstObject];
+    VZUSBTrackpadRelayStart(gVirtualMachine);
     dumpRPCHandlers(gVirtualMachine, "after-init");
     // setFramebuffer: installs the process_frame_update handler needed by the
     // VMM. The host hook holds its set_frame_rate message until start succeeds.

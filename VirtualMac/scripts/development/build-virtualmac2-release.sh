@@ -66,12 +66,14 @@ mkdir -p "$BIN"
 xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=16.1 -isysroot "$SDK" -fblocks \
     -framework AVFAudio -framework CoreImage -framework Foundation \
     -framework GameController -framework Metal -framework Security -framework UIKit \
-    -framework UniformTypeIdentifiers -Wl,-export_dynamic -Wl,-undefined,dynamic_lookup \
+    -framework UniformTypeIdentifiers -framework QuartzCore -framework IOKit \
+    -Wl,-export_dynamic -Wl,-undefined,dynamic_lookup \
     "$HOST/NSViewShim.m" "$HOST/VZAppSettings.m" "$HOST/VZDiagnostics.m" \
     "$HOST/VZFailureDetailsViewController.m" "$HOST/VZRestoreCatalog.m" "$HOST/VZSupport.m" \
     "$HOST/VZGuestTools.m" "$HOST/VZGuestRuntimePolicy.m" "$HOST/VZNewVMViewController.m" \
     "$HOST/VZProgressViewController.m" "$HOST/VZSettingsViewController.m" \
-    "$HOST/VZTrackpadScrollBridge.m" "$HOST/VZVMLibraryViewController.m" "$HOST/VirtualMacApp.m" \
+    "$HOST/VZTrackpadScrollBridge.m" "$HOST/VZVMLibraryViewController.m" \
+    "$HOST/VZUSBTrackpadRelay.m" "$HOST/VirtualMacApp.m" \
     -o "$BIN/VirtualMac"
 xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=16.1 -isysroot "$SDK" -fblocks \
     -framework Foundation -framework UIKit \

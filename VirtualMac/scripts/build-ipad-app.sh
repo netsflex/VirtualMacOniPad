@@ -36,6 +36,7 @@ need_file "$VZ_REPO_ROOT/vz/host/VZNewVMViewController.m"
 need_file "$VZ_REPO_ROOT/vz/host/VZProgressViewController.m"
 need_file "$VZ_REPO_ROOT/vz/host/VZSettingsViewController.m"
 need_file "$VZ_REPO_ROOT/vz/host/VZTrackpadScrollBridge.m"
+need_file "$VZ_REPO_ROOT/vz/host/VZUSBTrackpadRelay.m"
 need_file "$VZ_REPO_ROOT/vz/host/VZGuestTools.m"
 need_file "$VZ_REPO_ROOT/vz/host/VZGuestRuntimePolicy.m"
 need_file "$VZ_REPO_ROOT/vz/host/VZVMLibraryViewController.m"
@@ -107,7 +108,7 @@ xcrun --sdk iphoneos clang \
     -arch arm64 -miphoneos-version-min="$VZ_IPADOS_MIN_VERSION" -isysroot "$SDK" -fblocks \
     -framework AVFAudio -framework CoreImage -framework Foundation \
     -framework GameController -framework Metal -framework Security -framework UIKit \
-    -framework UniformTypeIdentifiers \
+    -framework UniformTypeIdentifiers -framework QuartzCore -framework IOKit \
     -Wl,-export_dynamic -Wl,-undefined,dynamic_lookup \
     "$VZ_REPO_ROOT/vz/host/NSViewShim.m" \
     "$VZ_REPO_ROOT/vz/host/VZAppSettings.m" \
@@ -122,6 +123,7 @@ xcrun --sdk iphoneos clang \
     "$VZ_REPO_ROOT/vz/host/VZSettingsViewController.m" \
     "$VZ_REPO_ROOT/vz/host/VZTrackpadScrollBridge.m" \
     "$VZ_REPO_ROOT/vz/host/VZVMLibraryViewController.m" \
+    "$VZ_REPO_ROOT/vz/host/VZUSBTrackpadRelay.m" \
     "$VZ_REPO_ROOT/vz/host/VirtualMacApp.m" \
     -o "$BIN"
 xcrun --sdk iphoneos clang \

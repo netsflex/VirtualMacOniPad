@@ -34,5 +34,11 @@
 	</array>
 	<key>get-task-allow</key>
 	<true/>
+	<key>com.apple.private.hid.client.event-monitor</key>
+	<true/>
+	<key>com.apple.private.hid.client.service-protected</key>
+	<true/>
+	<key>com.apple.private.hid.client.admin</key>
+	<true/>
 </dict>
 </plist>
