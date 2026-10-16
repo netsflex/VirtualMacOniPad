@@ -82,6 +82,9 @@ typedef struct {
     void *systemSession, *hostSession;
     // The format the system session was created for or last accepted.
     void *format;
+    // When the system session was created with a copy of format instead, that
+    // copy. Samples are moved onto it to decode.
+    void *sessionFormat;
     BOOL invalidating, failed;
     unsigned index, frames, emitFailures, copyFailures, formatChanges;
 } VTBridgeDecoder;
@@ -202,12 +205,15 @@ static CFDictionaryRef vt_bridge_pixel_attributes(void *formatDescription) {
     CFStringRef *formatKey = dlsym(RTLD_DEFAULT, "kCVPixelBufferPixelFormatTypeKey");
     CFStringRef *surfaceKey = dlsym(RTLD_DEFAULT, "kCVPixelBufferIOSurfacePropertiesKey");
     if (!formatKey || !surfaceKey) return NULL;
-    // Keep 10-bit content 10-bit; everything else decodes to 8-bit 4:2:0.
+    // Keep 10-bit content 10-bit and transparent content transparent, as the
+    // guest's software decoder does; everything else decodes to 8-bit 4:2:0.
     int32_t format = '420v', depth = 8;
     CFTypeRef (*extension)(void *, CFStringRef) = dlsym(RTLD_DEFAULT, "CMFormatDescriptionGetExtension");
     CFTypeRef bits = extension ? extension(formatDescription, CFSTR("BitsPerComponent")) : NULL;
+    CFTypeRef alpha = extension ? extension(formatDescription, CFSTR("ContainsAlphaChannel")) : NULL;
     if (bits && CFGetTypeID(bits) == CFNumberGetTypeID() &&
         CFNumberGetValue(bits, kCFNumberSInt32Type, &depth) && depth == 10) format = 'x420';
+    else if (alpha == kCFBooleanTrue) format = 'v0a8';
     CFNumberRef number = CFNumberCreate(NULL, kCFNumberSInt32Type, &format);
     // The decoded surface reaches the guest through another process. iPadOS
     // only lets that process look the surface up when it is registered
@@ -224,27 +230,146 @@ static CFDictionaryRef vt_bridge_pixel_attributes(void *formatDescription) {
     return attributes;
 }
 
-// Create the system session for format and make it the decoder's current one.
-static int32_t vt_bridge_open(VTBridgeDecoder *decoder, void *format) {
+// Whether an hvcC carries parameter sets for a layer above the base layer.
+static Boolean vt_bridge_hvcc_has_upper_layer(CFDataRef hvcc) {
+    const uint8_t *bytes = CFDataGetBytePtr(hvcc);
+    CFIndex length = CFDataGetLength(hvcc), at = 23;
+    if (length < 23) return false;
+    for (unsigned array = 0, arrays = bytes[22]; array < arrays && at + 3 <= length; ++array) {
+        unsigned units = bytes[at + 1] << 8 | bytes[at + 2];
+        at += 3;
+        for (unsigned unit = 0; unit < units && at + 2 <= length; ++unit) {
+            CFIndex size = bytes[at] << 8 | bytes[at + 1];
+            if (size >= 2 && at + 2 + size <= length &&
+                ((bytes[at + 2] & 1) << 5 | bytes[at + 3] >> 3)) return true;
+            at += 2 + size;
+        }
+    }
+    return false;
+}
+
+// The bundled framework decodes HEVC with alpha in its own muxed alpha
+// decoder, which splits the stream into a base layer and an alpha layer and
+// opens a session of this decoder for each, with an hvcC holding only that
+// layer's parameter sets but the original alpha extensions. iPadOS sends a
+// description marked as containing alpha to its own alpha decoder, which then
+// refuses it for the missing alpha layer. Return a copy without the alpha
+// marking for such a single-layer description, NULL for any other.
+static void *vt_bridge_single_layer_format(void *format) {
+    CFDictionaryRef (*extensionsOf)(void *) = dlsym(RTLD_DEFAULT, "CMFormatDescriptionGetExtensions");
+    uint32_t (*subType)(void *) = dlsym(RTLD_DEFAULT, "CMFormatDescriptionGetMediaSubType");
+    uint64_t (*dimensions)(void *) = dlsym(RTLD_DEFAULT, "CMVideoFormatDescriptionGetDimensions");
+    int32_t (*create)(CFAllocatorRef, uint32_t, int32_t, int32_t, CFDictionaryRef, void **) =
+        dlsym(RTLD_DEFAULT, "CMVideoFormatDescriptionCreate");
+    CFDictionaryRef extensions = extensionsOf ? extensionsOf(format) : NULL;
+    if (!extensions || !subType || !dimensions || !create || subType(format) != 'hvc1') return NULL;
+    CFDictionaryRef atoms = CFDictionaryGetValue(extensions, CFSTR("SampleDescriptionExtensionAtoms"));
+    CFDataRef hvcc = atoms && CFGetTypeID(atoms) == CFDictionaryGetTypeID() ?
+        CFDictionaryGetValue(atoms, CFSTR("hvcC")) : NULL;
+    if (!hvcc || CFGetTypeID(hvcc) != CFDataGetTypeID() || vt_bridge_hvcc_has_upper_layer(hvcc) ||
+        (CFDictionaryGetValue(extensions, CFSTR("ContainsAlphaChannel")) != kCFBooleanTrue &&
+         !CFDictionaryContainsKey(atoms, CFSTR("almo"))))
+        return NULL;
+    CFMutableDictionaryRef cleaned = CFDictionaryCreateMutableCopy(NULL, 0, extensions);
+    CFMutableDictionaryRef cleanedAtoms = CFDictionaryCreateMutableCopy(NULL, 0, atoms);
+    CFDictionaryRemoveValue(cleanedAtoms, CFSTR("almo"));
+    CFDictionarySetValue(cleaned, CFSTR("SampleDescriptionExtensionAtoms"), cleanedAtoms);
+    CFRelease(cleanedAtoms);
+    // The verbatim sample description repeats the alpha marking.
+    static const CFStringRef dropped[] = {CFSTR("ContainsAlphaChannel"), CFSTR("AlphaChannelMode"),
+                                          CFSTR("VerbatimSampleDescription"), CFSTR("VerbatimISOSampleEntry")};
+    for (unsigned i = 0; i < sizeof(dropped) / sizeof(dropped[0]); ++i)
+        CFDictionaryRemoveValue(cleaned, dropped[i]);
+    void *result = NULL;
+    uint64_t size = dimensions(format);
+    if (create(NULL, 'hvc1', (int32_t)(uint32_t)size, (int32_t)(size >> 32), cleaned, &result))
+        result = NULL;
+    CFRelease(cleaned);
+    return result;
+}
+
+static int32_t vt_bridge_create_session(VTBridgeDecoder *decoder, void *format,
+                                        CFDictionaryRef attributes, void **created) {
     const void *keys[] = {CFSTR("RequireHardwareAcceleratedVideoDecoder")};
     const void *values[] = {kCFBooleanTrue};
     CFDictionaryRef specification = CFDictionaryCreate(NULL, keys, values, 1,
         &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    CFDictionaryRef attributes = vt_bridge_pixel_attributes(format);
     VTBridgeOutputRecord record = {vt_bridge_output, decoder};
+    int32_t status = vtBridge.sessionCreate(NULL, format, specification, attributes, &record, created);
+    CFRelease(specification);
+    return status;
+}
+
+// Create the system session for format and make it the decoder's current one.
+static int32_t vt_bridge_open(VTBridgeDecoder *decoder, void *format) {
+    void *sessionFormat = vt_bridge_single_layer_format(format);
+    CFDictionaryRef attributes = vt_bridge_pixel_attributes(sessionFormat ? sessionFormat : format);
     void *created = NULL;
-    int32_t status = vtBridge.sessionCreate(NULL, format, specification, attributes, &record, &created);
+    int32_t status = vt_bridge_create_session(decoder, sessionFormat ? sessionFormat : format,
+                                              attributes, &created);
+    if (sessionFormat)
+        logf_("[VTBridge] session #%u single layer of an alpha stream -> %d", decoder->index, status);
     if (!status && created) {
         decoder->systemSession = created;
         CFRetain(format);
         if (decoder->format) CFRelease(decoder->format);
         decoder->format = format;
+        if (decoder->sessionFormat) CFRelease(decoder->sessionFormat);
+        decoder->sessionFormat = sessionFormat;
+        sessionFormat = NULL;
         if (attributes && vtBridge.setPixelBufferAttributes)
             vtBridge.setPixelBufferAttributes(decoder->hostSession, attributes);
     }
+    if (sessionFormat) CFRelease(sessionFormat);
     if (attributes) CFRelease(attributes);
-    CFRelease(specification);
     return status;
+}
+
+// The same sample on the format the system session was created with.
+static void *vt_bridge_rewrap(void *sampleBuffer, void *format) {
+    static void *(*dataOf)(void *);
+    static long (*samplesOf)(void *);
+    static int32_t (*timingOf)(void *, long, void *, long *), (*sizesOf)(void *, long, size_t *, long *);
+    static int32_t (*create)(CFAllocatorRef, void *, void *, long, long, const void *, long,
+                             const size_t *, void **);
+    static CFArrayRef (*attachmentsOf)(void *, Boolean);
+    static void (*propagate)(void *, void *);
+    if (!create) {
+        dataOf = dlsym(RTLD_DEFAULT, "CMSampleBufferGetDataBuffer");
+        samplesOf = dlsym(RTLD_DEFAULT, "CMSampleBufferGetNumSamples");
+        timingOf = dlsym(RTLD_DEFAULT, "CMSampleBufferGetSampleTimingInfoArray");
+        sizesOf = dlsym(RTLD_DEFAULT, "CMSampleBufferGetSampleSizeArray");
+        attachmentsOf = dlsym(RTLD_DEFAULT, "CMSampleBufferGetSampleAttachmentsArray");
+        propagate = dlsym(RTLD_DEFAULT, "CMPropagateAttachments");
+        create = dlsym(RTLD_DEFAULT, "CMSampleBufferCreateReady");
+    }
+    if (!dataOf || !samplesOf || !timingOf || !sizesOf || !attachmentsOf || !propagate || !create)
+        return NULL;
+    long timings = 0, sizes = 0;
+    if (timingOf(sampleBuffer, 0, NULL, &timings)) timings = 0;
+    if (sizesOf(sampleBuffer, 0, NULL, &sizes)) sizes = 0;
+    VTBridgeTime *timing = timings ? calloc((size_t)timings * 3, sizeof(VTBridgeTime)) : NULL;
+    size_t *size = sizes ? calloc((size_t)sizes, sizeof(size_t)) : NULL;
+    void *result = NULL;
+    if ((!timings || (timing && !timingOf(sampleBuffer, timings, timing, &timings))) &&
+        (!sizes || (size && !sizesOf(sampleBuffer, sizes, size, &sizes))) &&
+        !create(NULL, dataOf(sampleBuffer), format, samplesOf(sampleBuffer), timings, timing, sizes,
+                size, &result) && result) {
+        propagate(sampleBuffer, result);
+        CFArrayRef from = attachmentsOf(sampleBuffer, false), to = attachmentsOf(result, true);
+        for (CFIndex i = 0; from && to && i < CFArrayGetCount(from) && i < CFArrayGetCount(to); ++i) {
+            CFDictionaryRef source = CFArrayGetValueAtIndex(from, i);
+            CFMutableDictionaryRef target = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(to, i);
+            CFIndex count = CFDictionaryGetCount(source);
+            const void **keys = calloc((size_t)count * 2 + 1, sizeof(void *));
+            CFDictionaryGetKeysAndValues(source, keys, keys + count);
+            for (CFIndex key = 0; key < count; ++key) CFDictionarySetValue(target, keys[key], keys[count + key]);
+            free(keys);
+        }
+    }
+    free(timing);
+    free(size);
+    return result;
 }
 
 // Streams may carry a new format description on any sample, as Safari's media
@@ -297,8 +422,8 @@ static int32_t vt_bridge_start(void *object, void *session, void *format) {
     uint64_t pixels = (uint64_t)(uint32_t)packed * (uint32_t)(packed >> 32);
     // A refused start lets VideoToolbox fall back to the guest's software decoder.
     if (!pixels) return -12910;
-    int32_t status = vt_bridge_open(decoder, format);
     decoder->index = __sync_add_and_fetch(&vtBridgeSessions, 1);
+    int32_t status = vt_bridge_open(decoder, format);
     uint32_t (*subType)(void *) = dlsym(RTLD_DEFAULT, "CMFormatDescriptionGetMediaSubType");
     uint64_t (*dimensions)(void *) = dlsym(RTLD_DEFAULT, "CMVideoFormatDescriptionGetDimensions");
     uint32_t codec = subType ? subType(format) : 0;
@@ -317,7 +442,13 @@ static int32_t vt_bridge_decode(void *object, void *frame, void *sampleBuffer, u
     if (changed) return changed;
     // The frame token travels as the system session's per-frame refcon and
     // comes back in vt_bridge_output, which emits it exactly once.
-    return vtBridge.sessionDecode(decoder->systemSession, sampleBuffer, flags, frame, infoFlagsOut);
+    if (!decoder->sessionFormat)
+        return vtBridge.sessionDecode(decoder->systemSession, sampleBuffer, flags, frame, infoFlagsOut);
+    void *rewrapped = vt_bridge_rewrap(sampleBuffer, decoder->sessionFormat);
+    if (!rewrapped) return -12911;
+    int32_t status = vtBridge.sessionDecode(decoder->systemSession, rewrapped, flags, frame, infoFlagsOut);
+    CFRelease(rewrapped);
+    return status;
 }
 
 static int32_t vt_bridge_finish(void *object) {
@@ -351,6 +482,10 @@ static int32_t vt_bridge_invalidate(void *object) {
     if (decoder && decoder->format) {
         CFRelease(decoder->format);
         decoder->format = NULL;
+    }
+    if (decoder && decoder->sessionFormat) {
+        CFRelease(decoder->sessionFormat);
+        decoder->sessionFormat = NULL;
     }
     return 0;
 }
