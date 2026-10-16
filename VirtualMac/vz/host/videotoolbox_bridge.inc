@@ -95,6 +95,7 @@ static struct {
     void *(*decoderClassID)(void);
     int32_t (*emitFrame)(void *session, void *frame, int32_t status, uint32_t infoFlags, void *image);
     int32_t (*setPixelBufferAttributes)(void *session, CFDictionaryRef);
+    CFDictionaryRef (*destinationAttributes)(void *session);
     int32_t (*createPixelBuffer)(void *session, void *unused, void **pixelBufferOut);
     void (*cleanUpAfterDecode)(void *session);
     // CoreMedia.
@@ -201,19 +202,44 @@ static void vt_bridge_output(void *refcon, void *frame, int32_t status, uint32_t
     if (vtBridge.cleanUpAfterDecode) vtBridge.cleanUpAfterDecode(decoder->hostSession);
 }
 
-static CFDictionaryRef vt_bridge_pixel_attributes(void *formatDescription) {
+// The first pixel format the host session's client asked for, or 0.
+static int32_t vt_bridge_requested_format(void *hostSession) {
+    CFStringRef *formatKey = dlsym(RTLD_DEFAULT, "kCVPixelBufferPixelFormatTypeKey");
+    CFDictionaryRef attributes = vtBridge.destinationAttributes && formatKey ?
+        vtBridge.destinationAttributes(hostSession) : NULL;
+    CFTypeRef value = attributes && CFGetTypeID(attributes) == CFDictionaryGetTypeID() ?
+        CFDictionaryGetValue(attributes, *formatKey) : NULL;
+    if (value && CFGetTypeID(value) == CFArrayGetTypeID())
+        value = CFArrayGetCount(value) ? CFArrayGetValueAtIndex(value, 0) : NULL;
+    int32_t format = 0;
+    if (!value || CFGetTypeID(value) != CFNumberGetTypeID() ||
+        !CFNumberGetValue(value, kCFNumberSInt32Type, &format)) return 0;
+    return format;
+}
+
+// Destination attributes for the system session: the given pixel format, or
+// when it is 0 the one matching the stream, as the guest's software decoder
+// would produce it.
+static CFDictionaryRef vt_bridge_pixel_attributes(void *formatDescription, int32_t requested) {
     CFStringRef *formatKey = dlsym(RTLD_DEFAULT, "kCVPixelBufferPixelFormatTypeKey");
     CFStringRef *surfaceKey = dlsym(RTLD_DEFAULT, "kCVPixelBufferIOSurfacePropertiesKey");
     if (!formatKey || !surfaceKey) return NULL;
-    // Keep 10-bit content 10-bit and transparent content transparent, as the
-    // guest's software decoder does; everything else decodes to 8-bit 4:2:0.
-    int32_t format = '420v', depth = 8;
+    // Keep 10-bit content 10-bit, full range content full range and
+    // transparent content transparent; a narrower format makes VideoToolbox
+    // convert, and the conversion rounds.
+    int32_t format = requested, depth = 8;
     CFTypeRef (*extension)(void *, CFStringRef) = dlsym(RTLD_DEFAULT, "CMFormatDescriptionGetExtension");
     CFTypeRef bits = extension ? extension(formatDescription, CFSTR("BitsPerComponent")) : NULL;
     CFTypeRef alpha = extension ? extension(formatDescription, CFSTR("ContainsAlphaChannel")) : NULL;
-    if (bits && CFGetTypeID(bits) == CFNumberGetTypeID() &&
-        CFNumberGetValue(bits, kCFNumberSInt32Type, &depth) && depth == 10) format = 'x420';
-    else if (alpha == kCFBooleanTrue) format = 'v0a8';
+    CFTypeRef full = extension ? extension(formatDescription, CFSTR("FullRangeVideo")) : NULL;
+    BOOL fullRange = full == kCFBooleanTrue;
+    if (!format) {
+        if (bits && CFGetTypeID(bits) == CFNumberGetTypeID() &&
+            CFNumberGetValue(bits, kCFNumberSInt32Type, &depth) && depth == 10)
+            format = fullRange ? 'xf20' : 'x420';
+        else if (alpha == kCFBooleanTrue) format = 'v0a8';
+        else format = fullRange ? '420f' : '420v';
+    }
     CFNumberRef number = CFNumberCreate(NULL, kCFNumberSInt32Type, &format);
     // The decoded surface reaches the guest through another process. iPadOS
     // only lets that process look the surface up when it is registered
@@ -303,12 +329,28 @@ static int32_t vt_bridge_create_session(VTBridgeDecoder *decoder, void *format,
 // Create the system session for format and make it the decoder's current one.
 static int32_t vt_bridge_open(VTBridgeDecoder *decoder, void *format) {
     void *sessionFormat = vt_bridge_single_layer_format(format);
-    CFDictionaryRef attributes = vt_bridge_pixel_attributes(sessionFormat ? sessionFormat : format);
+    // A layer of an alpha stream goes to the bundled muxed alpha decoder,
+    // which asks for the pixel format it combines the layers in. Decoding to
+    // any other makes the host session convert each image, and the alpha
+    // values come out off by one. Fall back to our own choice if the system
+    // decoder cannot produce the requested format.
+    int32_t requested = sessionFormat ? vt_bridge_requested_format(decoder->hostSession) : 0;
+    CFDictionaryRef attributes = vt_bridge_pixel_attributes(sessionFormat ? sessionFormat : format, requested);
     void *created = NULL;
     int32_t status = vt_bridge_create_session(decoder, sessionFormat ? sessionFormat : format,
                                               attributes, &created);
+    if (status && requested) {
+        if (attributes) CFRelease(attributes);
+        attributes = vt_bridge_pixel_attributes(sessionFormat, 0);
+        int32_t retried = vt_bridge_create_session(decoder, sessionFormat, attributes, &created);
+        logf_("[VTBridge] session #%u requested %c%c%c%c refused (%d); default format -> %d", decoder->index,
+              requested >> 24, requested >> 16, requested >> 8, requested, status, retried);
+        status = retried;
+    }
     if (sessionFormat)
-        logf_("[VTBridge] session #%u single layer of an alpha stream -> %d", decoder->index, status);
+        logf_("[VTBridge] session #%u single layer of an alpha stream requested=%c%c%c%c -> %d",
+              decoder->index, requested ? requested >> 24 : '-', requested ? requested >> 16 : '-',
+              requested ? requested >> 8 : '-', requested ? requested : '-', status);
     if (!status && created) {
         decoder->systemSession = created;
         CFRetain(format);
@@ -388,15 +430,24 @@ static int32_t vt_bridge_follow_format(VTBridgeDecoder *decoder, void *sampleBuf
     if (!format || format == decoder->format || !equal ||
         (decoder->format && equal(format, decoder->format))) return 0;
     unsigned change = ++decoder->formatChanges;
-    if (vtBridge.sessionCanAccept && vtBridge.sessionCanAccept(decoder->systemSession, format)) {
+    // A session made for a layer of an alpha stream judges the new format the
+    // way it was created: without the alpha marking.
+    void *candidate = decoder->sessionFormat ? vt_bridge_single_layer_format(format) : NULL;
+    if (vtBridge.sessionCanAccept && (!decoder->sessionFormat || candidate) &&
+        vtBridge.sessionCanAccept(decoder->systemSession, candidate ? candidate : format)) {
         if (change <= 4)
             logf_("[VTBridge] session #%u format change %u accepted by the system session",
                   decoder->index, change);
         CFRetain(format);
         if (decoder->format) CFRelease(decoder->format);
         decoder->format = format;
+        if (candidate) {
+            CFRelease(decoder->sessionFormat);
+            decoder->sessionFormat = candidate;
+        }
         return 0;
     }
+    if (candidate) CFRelease(candidate);
     void *previous = decoder->systemSession;
     vtBridge.sessionFinish(previous);
     vtBridge.sessionWait(previous);
@@ -540,6 +591,7 @@ static void videotoolbox_bridge_install(void) {
     vtBridge.decoderClassID = dlsym(bundled, "VTVideoDecoderGetClassID");
     vtBridge.emitFrame = dlsym(bundled, "VTDecoderSessionEmitDecodedFrame");
     vtBridge.setPixelBufferAttributes = dlsym(bundled, "VTDecoderSessionSetPixelBufferAttributes");
+    vtBridge.destinationAttributes = dlsym(bundled, "VTDecoderSessionGetDestinationPixelBufferAttributes");
     vtBridge.createPixelBuffer = dlsym(bundled, "VTDecoderSessionCreatePixelBuffer");
     vtBridge.cleanUpAfterDecode = dlsym(bundled, "VTDecoderSessionCleanUpAfterDecode");
     vtBridge.derivedObjectCreate = dlsym(RTLD_DEFAULT, "CMDerivedObjectCreate");
