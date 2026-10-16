@@ -32,7 +32,10 @@ static const char vtBridgeDisabledFlag[] = "/var/root/VirtualMac2/diagnostics/vi
 // On arm64e every member is signed with its own address-diversified
 // discriminator. The values are the ones the bundled framework's ten built-in
 // decoder classes carry in their fixups and that its call sites authenticate
-// against. Members no built-in class sets stay NULL.
+// against. Members no built-in class sets stay NULL. The tile members come from
+// the guest-side paravirtualized decoder's class, the one built-in class that
+// sets all three; VTTileDecompressionSession only calls them in a class of
+// version 3 or later and otherwise fails with -12782.
 #if __has_feature(ptrauth_calls)
 #define VT_BRIDGE_CODE(discriminator) __ptrauth(ptrauth_key_asia, 1, discriminator)
 #define VT_BRIDGE_DATA(discriminator) __ptrauth(ptrauth_key_asda, 1, discriminator)
@@ -52,6 +55,8 @@ typedef struct {
     void *notificationBarrier;
     const void *protocolTable;
 } VTBridgeBaseClass;
+typedef struct { int32_t x, y; } VTBridgePoint;
+typedef struct { int32_t width, height; } VTBridgeSize;
 typedef struct {
     uintptr_t version;
     int32_t (*VT_BRIDGE_CODE(0x7BE9) startSession)(void *decoder, void *session, void *format);
@@ -61,7 +66,14 @@ typedef struct {
                                                                       CFDictionaryRef *out);
     void *setProperties, *copySerializableProperties, *canAcceptFormatDescription;
     int32_t (*VT_BRIDGE_CODE(0xBFC3) finishDelayedFrames)(void *decoder);
-    void *startTileSession, *decodeTile, *finishDelayedTiles;
+    // Version 3. The tile is cropped out of the decoded sample at cropOffset
+    // with cropSize and written into the canvas at canvasOffset.
+    int32_t (*VT_BRIDGE_CODE(0x9605) startTileSession)(void *decoder, void *tileSession, void *format);
+    int32_t (*VT_BRIDGE_CODE(0xBA86) decodeTile)(void *decoder, int64_t tile, void *sampleBuffer,
+                                                 VTBridgePoint cropOffset, VTBridgeSize cropSize,
+                                                 void *canvas, VTBridgePoint canvasOffset,
+                                                 uint32_t flags, uint32_t *infoFlagsOut);
+    int32_t (*VT_BRIDGE_CODE(0xECDB) finishDelayedTiles)(void *decoder);
 } VTBridgeDecoderClass;
 typedef struct {
     struct {
@@ -87,7 +99,14 @@ typedef struct {
     void *sessionFormat;
     BOOL invalidating, failed;
     unsigned index, frames, emitFailures, copyFailures, formatChanges;
+    // A decoder started as a tile session instead (HEIC). hostTileSession is
+    // the bundled framework's tile decoder session.
+    void *systemTileSession, *hostTileSession;
+    unsigned tiles, tileErrors;
 } VTBridgeDecoder;
+typedef void (*VTBridgeTileOutput)(void *refcon, void *tile, VTBridgePoint cropOffset, VTBridgeSize cropSize,
+                                   void *canvas, VTBridgePoint canvasOffset, int32_t status,
+                                   uint32_t infoFlags);
 
 static struct {
     // Bundled framework.
@@ -109,8 +128,20 @@ static struct {
     int32_t (*sessionWait)(void *);
     void (*sessionInvalidate)(void *);
     Boolean (*sessionCanAccept)(void *, void *format);
+    // Tile decoding, all NULL when either framework lacks a part of it.
+    int32_t (*emitTile)(void *tileSession, int64_t tile, int32_t status, uint32_t infoFlags, void *canvas);
+    int32_t (*setTileRequirements)(void *tileSession, CFDictionaryRef canvasAttributes,
+                                   CFDictionaryRef requirements);
+    int32_t (*tileSessionCreate)(CFAllocatorRef, void *format, CFDictionaryRef, VTBridgeTileOutput,
+                                 void *refcon, void **);
+    int32_t (*tileSessionDecode)(void *, void *sampleBuffer, VTBridgePoint, VTBridgeSize, void *canvas,
+                                 VTBridgePoint, uint32_t flags, void *tile, uint32_t *);
+    int32_t (*tileSessionFinish)(void *);
+    void (*tileSessionInvalidate)(void *);
+    int32_t (*tileSessionCopyProperty)(void *, CFStringRef, CFAllocatorRef, void *);
+    CFStringRef canvasAttributesKey, tileRequirementsKey;
 } vtBridge;
-static unsigned vtBridgeSessions, vtBridgeErrors;
+static unsigned vtBridgeSessions, vtBridgeErrors, vtBridgeTileSessions;
 
 // Copy the decoded planes into a buffer from the host session's pool: handing
 // back the decoder's own buffer reaches the guest as an empty image.
@@ -510,6 +541,100 @@ static int32_t vt_bridge_finish(void *object) {
     return status ? status : waited;
 }
 
+// HEIC images decode through tile sessions: each sample is one tile of the
+// image, which the decoder writes into a canvas buffer the guest allocated
+// with the attributes the decoder asked for. Forward them to a hardware tile
+// session of the system framework, which writes into the same canvas.
+static void vt_bridge_tile_output(void *refcon, void *tile, VTBridgePoint cropOffset, VTBridgeSize cropSize,
+                                  void *canvas, VTBridgePoint canvasOffset, int32_t status,
+                                  uint32_t infoFlags) {
+    (void)cropOffset; (void)cropSize; (void)canvas; (void)canvasOffset;
+    VTBridgeDecoder *decoder = refcon;
+    if (status && ++decoder->tileErrors <= 4)
+        logf_("[VTBridge] tile session #%u system decoder returned status=%d", decoder->index, status);
+    ++decoder->tiles;
+    // NULL leaves the canvas the guest passed in with the tile.
+    int32_t result = vtBridge.emitTile(decoder->hostTileSession, (int64_t)(intptr_t)tile, status,
+                                       infoFlags, NULL);
+    if (result && ++decoder->tileErrors <= 4)
+        logf_("[VTBridge] tile session #%u emit tile %u -> %d", decoder->index, decoder->tiles, result);
+}
+
+static int32_t vt_bridge_start_tiles(void *object, void *tileSession, void *format) {
+    VTBridgeDecoder *decoder = vtBridge.derivedStorage(object);
+    if (!decoder) return -12902;
+    if (!vtBridge.tileSessionCreate) return -12910;
+    decoder->hostTileSession = tileSession;
+    decoder->index = __sync_add_and_fetch(&vtBridgeSessions, 1);
+    const void *keys[] = {CFSTR("RequireHardwareAcceleratedVideoDecoder")};
+    const void *values[] = {kCFBooleanTrue};
+    CFDictionaryRef specification = CFDictionaryCreate(NULL, keys, values, 1,
+        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    void *created = NULL;
+    int32_t status = vtBridge.tileSessionCreate(NULL, format, specification, vt_bridge_tile_output,
+                                                decoder, &created);
+    CFRelease(specification);
+    // The guest sizes and aligns tiles and allocates the canvas by what the
+    // decoder requires; pass on what the system decoder requires.
+    CFDictionaryRef canvasAttributes = NULL, requirements = NULL;
+    int32_t requirementsStatus = -12782;
+    if (!status && created) {
+        decoder->systemTileSession = created;
+        vtBridge.tileSessionCopyProperty(created, vtBridge.canvasAttributesKey, NULL, &canvasAttributes);
+        vtBridge.tileSessionCopyProperty(created, vtBridge.tileRequirementsKey, NULL, &requirements);
+        requirementsStatus = vtBridge.setTileRequirements(tileSession, canvasAttributes, requirements);
+    }
+    uint32_t (*subType)(void *) = dlsym(RTLD_DEFAULT, "CMFormatDescriptionGetMediaSubType");
+    uint64_t (*dimensions)(void *) = dlsym(RTLD_DEFAULT, "CMVideoFormatDescriptionGetDimensions");
+    uint32_t codec = subType ? subType(format) : 0;
+    uint64_t size = dimensions ? dimensions(format) : 0;
+    // Images open one tile session each; log the first ones in full.
+    unsigned count = __sync_add_and_fetch(&vtBridgeTileSessions, 1);
+    if (status || count <= 4) {
+        logf_("[VTBridge] tile session #%u start %c%c%c%c %ux%u status=%d requirements=%d", decoder->index,
+              codec >> 24, codec >> 16, codec >> 8, codec, (uint32_t)size, (uint32_t)(size >> 32), status,
+              requirementsStatus);
+        if (count == 1 && requirements) {
+            CFStringRef text = CFCopyDescription(requirements);
+            char buffer[512] = "";
+            if (text) CFStringGetCString(text, buffer, sizeof(buffer), kCFStringEncodingUTF8);
+            // One log line: fold the description's newlines and indentation.
+            char *to = buffer;
+            for (const char *from = buffer; *from; ++from)
+                if (!isspace((unsigned char)*from) || (to > buffer && to[-1] != ' ')) *to++ = isspace((unsigned char)*from) ? ' ' : *from;
+            *to = 0;
+            logf_("[VTBridge] tile requirements %s", buffer);
+            if (text) CFRelease(text);
+        }
+    }
+    if (canvasAttributes) CFRelease(canvasAttributes);
+    if (requirements) CFRelease(requirements);
+    return status;
+}
+
+static int32_t vt_bridge_decode_tile(void *object, int64_t tile, void *sampleBuffer, VTBridgePoint cropOffset,
+                                     VTBridgeSize cropSize, void *canvas, VTBridgePoint canvasOffset,
+                                     uint32_t flags, uint32_t *infoFlagsOut) {
+    VTBridgeDecoder *decoder = vtBridge.derivedStorage(object);
+    if (!decoder || !decoder->systemTileSession) return -12902;
+    // The tile number travels as the system session's per-tile refcon and
+    // comes back in vt_bridge_tile_output, which emits it exactly once.
+    int32_t status = vtBridge.tileSessionDecode(decoder->systemTileSession, sampleBuffer, cropOffset, cropSize,
+                                                canvas, canvasOffset, flags, (void *)(intptr_t)tile,
+                                                infoFlagsOut);
+    if (status && ++decoder->tileErrors <= 4)
+        logf_("[VTBridge] tile session #%u decode tile %lld crop %d,%d %dx%d at %d,%d -> %d", decoder->index,
+              (long long)tile, cropOffset.x, cropOffset.y, cropSize.width, cropSize.height,
+              canvasOffset.x, canvasOffset.y, status);
+    return status;
+}
+
+static int32_t vt_bridge_finish_tiles(void *object) {
+    VTBridgeDecoder *decoder = vtBridge.derivedStorage(object);
+    if (!decoder || !decoder->systemTileSession) return 0;
+    return vtBridge.tileSessionFinish(decoder->systemTileSession);
+}
+
 // All ten built-in decoders implement this; this one has no settable properties.
 static int32_t vt_bridge_supported_properties(void *object, CFDictionaryRef *out) {
     (void)object;
@@ -529,6 +654,14 @@ static int32_t vt_bridge_invalidate(void *object) {
         vtBridge.sessionInvalidate(decoder->systemSession);
         CFRelease(decoder->systemSession);
         decoder->systemSession = NULL;
+    }
+    if (decoder && decoder->systemTileSession) {
+        if (decoder->tileErrors || vtBridgeTileSessions <= 4)
+            logf_("[VTBridge] tile session #%u invalidate tiles=%u errors=%u", decoder->index,
+                  decoder->tiles, decoder->tileErrors);
+        vtBridge.tileSessionInvalidate(decoder->systemTileSession);
+        CFRelease(decoder->systemTileSession);
+        decoder->systemTileSession = NULL;
     }
     if (decoder && decoder->format) {
         CFRelease(decoder->format);
@@ -551,8 +684,8 @@ static const VTBridgeBaseClass vtBridgeBaseClass = {
     vt_bridge_description, NULL, NULL, NULL, NULL,
 };
 static const VTBridgeDecoderClass vtBridgeDecoderClass = {
-    1, vt_bridge_start, vt_bridge_decode, vt_bridge_supported_properties, NULL, NULL, NULL,
-    vt_bridge_finish, NULL, NULL, NULL,
+    3, vt_bridge_start, vt_bridge_decode, vt_bridge_supported_properties, NULL, NULL, NULL,
+    vt_bridge_finish, vt_bridge_start_tiles, vt_bridge_decode_tile, vt_bridge_finish_tiles,
 };
 static const VTBridgeVTable vtBridgeVTable = {{NULL, &vtBridgeBaseClass}, &vtBridgeDecoderClass};
 
@@ -602,6 +735,31 @@ static void videotoolbox_bridge_install(void) {
     vtBridge.sessionWait = dlsym(system, "VTDecompressionSessionWaitForAsynchronousFrames");
     vtBridge.sessionInvalidate = dlsym(system, "VTDecompressionSessionInvalidate");
     vtBridge.sessionCanAccept = dlsym(system, "VTDecompressionSessionCanAcceptFormatDescription");
+    // Tile sessions (SPI in both frameworks) have the same signatures in both.
+    CFStringRef *canvasKey = dlsym(system, "kVTDecompressionPropertyKey_CanvasPixelBufferAttributes");
+    CFStringRef *requirementsKey = dlsym(system, "kVTDecompressionPropertyKey_TileDecoderRequirements");
+    void *tileParts[] = {
+        dlsym(bundled, "VTTileDecoderSessionEmitDecodedTile"),
+        dlsym(bundled, "VTTileDecoderSessionSetTileDecodeRequirements"),
+        dlsym(system, "VTTileDecompressionSessionCreate"),
+        dlsym(system, "VTTileDecompressionSessionDecodeTile"),
+        dlsym(system, "VTTileDecompressionSessionFinishDelayedTiles"),
+        dlsym(system, "VTTileDecompressionSessionInvalidate"),
+        dlsym(system, "VTTileDecompressionSessionCopyProperty"),
+    };
+    BOOL tiles = canvasKey && *canvasKey && requirementsKey && *requirementsKey;
+    for (unsigned i = 0; i < sizeof(tileParts) / sizeof(tileParts[0]); ++i) tiles = tiles && tileParts[i];
+    if (tiles && tileParts[2] != dlsym(bundled, "VTTileDecompressionSessionCreate")) {
+        vtBridge.emitTile = tileParts[0];
+        vtBridge.setTileRequirements = tileParts[1];
+        vtBridge.tileSessionCreate = tileParts[2];
+        vtBridge.tileSessionDecode = tileParts[3];
+        vtBridge.tileSessionFinish = tileParts[4];
+        vtBridge.tileSessionInvalidate = tileParts[5];
+        vtBridge.tileSessionCopyProperty = tileParts[6];
+        vtBridge.canvasAttributesKey = *canvasKey;
+        vtBridge.tileRequirementsKey = *requirementsKey;
+    } else logf_("[VTBridge] tile decoding not bridged: a symbol is missing or not distinct");
     // The host session offers the guest only decoders whose registration says
     // hardware accelerated and paravirtualization aware, and not a wrapper.
     CFStringRef *hardwareKey = dlsym(bundled, "kVTVideoDecoder_IsHardwareAccelerated");
