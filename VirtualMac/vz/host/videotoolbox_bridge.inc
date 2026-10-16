@@ -130,6 +130,7 @@ static struct {
     Boolean (*sessionCanAccept)(void *, void *format);
     // Tile decoding, all NULL when either framework lacks a part of it.
     int32_t (*emitTile)(void *tileSession, int64_t tile, int32_t status, uint32_t infoFlags, void *canvas);
+    void (*cleanUpAfterTile)(void *tileSession);
     int32_t (*setTileRequirements)(void *tileSession, CFDictionaryRef canvasAttributes,
                                    CFDictionaryRef requirements);
     int32_t (*tileSessionCreate)(CFAllocatorRef, void *format, CFDictionaryRef, VTBridgeTileOutput,
@@ -558,6 +559,10 @@ static void vt_bridge_tile_output(void *refcon, void *tile, VTBridgePoint cropOf
                                        infoFlags, NULL);
     if (result && ++decoder->tileErrors <= 4)
         logf_("[VTBridge] tile session #%u emit tile %u -> %d", decoder->index, decoder->tiles, result);
+    // As with frames, the guest frees the canvas it allocated for a tile only
+    // once the host session reports letting go of it, which it does only from
+    // here. Without this every tile's canvas stays wired in the guest.
+    vtBridge.cleanUpAfterTile(decoder->hostTileSession);
 }
 
 static int32_t vt_bridge_start_tiles(void *object, void *tileSession, void *format) {
@@ -746,6 +751,7 @@ static void videotoolbox_bridge_install(void) {
         dlsym(system, "VTTileDecompressionSessionFinishDelayedTiles"),
         dlsym(system, "VTTileDecompressionSessionInvalidate"),
         dlsym(system, "VTTileDecompressionSessionCopyProperty"),
+        dlsym(bundled, "VTTileDecoderSessionCleanUpAfterDecode"),
     };
     BOOL tiles = canvasKey && *canvasKey && requirementsKey && *requirementsKey;
     for (unsigned i = 0; i < sizeof(tileParts) / sizeof(tileParts[0]); ++i) tiles = tiles && tileParts[i];
@@ -757,6 +763,7 @@ static void videotoolbox_bridge_install(void) {
         vtBridge.tileSessionFinish = tileParts[4];
         vtBridge.tileSessionInvalidate = tileParts[5];
         vtBridge.tileSessionCopyProperty = tileParts[6];
+        vtBridge.cleanUpAfterTile = tileParts[7];
         vtBridge.canvasAttributesKey = *canvasKey;
         vtBridge.tileRequirementsKey = *requirementsKey;
     } else logf_("[VTBridge] tile decoding not bridged: a symbol is missing or not distinct");
