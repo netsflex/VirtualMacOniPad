@@ -136,10 +136,15 @@ def stage_app(source, binary, destination, version, build):
             if isinstance(value, str):
                 localized[key] = value.replace(upstream, version)
         strings.write_bytes(plistlib.dumps(localized, fmt=plistlib.FMT_BINARY))
-    # Keep the installed app's exact entitlements, including platform-application.
+    # Keep the installed app's entitlements, including platform-application, and
+    # add the HID client rights the Magic Trackpad relay needs to monitor events.
     entitlements = destination.parent / "app-entitlements.plist"
-    entitlements.write_bytes(run("codesign", "-d", "--entitlements", ":-", str(source),
+    granted = plistlib.loads(run("codesign", "-d", "--entitlements", ":-", str(source),
                                  capture_output=True).stdout)
+    fork = plistlib.loads((REPO / "vz/host/VirtualMac.entitlements").read_bytes())
+    granted.update({key: value for key, value in fork.items()
+                    if key.startswith("com.apple.private.hid.client.")})
+    entitlements.write_bytes(plistlib.dumps(granted))
     run("codesign", "--force", "--sign", "-", "--timestamp=none", "--identifier",
         "com.mac.virtual.v2", "--entitlements", str(entitlements), str(destination))
     run("codesign", "--verify", "--deep", "--strict", str(destination))
