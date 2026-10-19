@@ -160,8 +160,8 @@ def main():
     parser.add_argument("--release-123", type=Path, required=True)
     parser.add_argument("--binaries", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--release-version", default="2.1.0beta1")
-    parser.add_argument("--build-number", default="1003")
+    parser.add_argument("--release-version", default="2.2.0beta1")
+    parser.add_argument("--build-number", default="1004")
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9][A-Za-z0-9.+-]*", args.release_version) or not re.fullmatch(r"[0-9]+", args.build_number):
         parser.error("Expected a safe release version and numeric build number")
