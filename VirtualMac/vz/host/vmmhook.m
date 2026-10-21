@@ -35,6 +35,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/sysctl.h>
+#include <sys/time.h>
 #include <sys/un.h>
 #include <sys/uio.h>
 #include <unistd.h>
@@ -350,6 +351,7 @@ static void logf_(const char *fmt, ...) {
 
 #include "btaudio_retry.inc"
 #include "vmm_profiler.inc"
+#include "disk_image_io.inc"
 #include "videotoolbox_bridge.inc"
 #include "videotoolbox_encoder_bridge.inc"
 #include "usb_trackpad_proto.inc"
