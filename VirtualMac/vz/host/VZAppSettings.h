@@ -34,6 +34,12 @@ FOUNDATION_EXPORT NSString * const VZDebugLoggingKey;
 FOUNDATION_EXPORT NSString * const VZDebugLoggingModeOff;
 FOUNDATION_EXPORT NSString * const VZDebugLoggingModeNextBoot;
 FOUNDATION_EXPORT NSString * const VZDebugLoggingModeAlways;
+// Developer-only Disk.img policy overrides. They have no Settings UI; edit
+// Settings.plist and relaunch the app. Caching takes automatic, uncached or
+// cached; synchronization takes full, fsync or none. An absent key keeps that
+// axis at the default, Cached caching with Fsync synchronization.
+FOUNDATION_EXPORT NSString * const VZDebugDiskCachingModeKey;
+FOUNDATION_EXPORT NSString * const VZDebugDiskSynchronizationModeKey;
 
 BOOL VZConsumeDebugLoggingForBoot(void);
 void VZEnableDebugLoggingForNextBoot(void);

@@ -4987,6 +4987,81 @@ static void configureDirectorySharing(id configuration,
            directories.allKeys.description.UTF8String);
 }
 
+// Map a developer Disk.img policy name to its VZ enum value, or -1.
+static NSInteger debugDiskModeValue(NSString *name, NSArray<NSString *> *names,
+                                    NSInteger firstValue) {
+    NSUInteger index = name ? [names indexOfObject:name.lowercaseString]
+                            : NSNotFound;
+    return index == NSNotFound ? -1 : firstValue + (NSInteger)index;
+}
+
+// Disk.img defaults to Cached caching with Fsync synchronization. In the
+// bundled VMM, every caching mode except Cached opens Disk.img with F_NOCACHE;
+// a guest flush becomes F_FULLFSYNC under Full and plain fsync under Fsync,
+// while guest barriers stay F_BARRIERFSYNC under both. Settings.plist can
+// override each axis separately for disk I/O comparisons. The three-argument
+// initializer (Automatic and Full) remains the fallback.
+static id makeDiskImageAttachment(NSString *bundlePath, NSError **error) {
+    NSURL *url = fileURL([bundlePath stringByAppendingPathComponent:@"Disk.img"]);
+    id attachmentClass = CLS("VZDiskImageStorageDeviceAttachment");
+    VZAppSettings *settings = VZAppSettings.sharedSettings;
+    NSString *cachingName = [settings stringForKey:VZDebugDiskCachingModeKey];
+    NSString *synchronizationName =
+        [settings stringForKey:VZDebugDiskSynchronizationModeKey];
+    NSArray *cachingNames = @[@"automatic", @"uncached", @"cached"];
+    NSArray *synchronizationNames = @[@"full", @"fsync", @"none"];
+    NSInteger caching = 2 /* VZDiskImageCachingModeCached */;
+    NSInteger synchronization = 2 /* VZDiskImageSynchronizationModeFsync */;
+    if (cachingName.length || synchronizationName.length) {
+        NSInteger overrideCaching = cachingName.length
+            ? debugDiskModeValue(cachingName, cachingNames, 0) : caching;
+        NSInteger overrideSynchronization = synchronizationName.length
+            ? debugDiskModeValue(synchronizationName, synchronizationNames, 1)
+            : synchronization;
+        if (overrideCaching < 0 || overrideSynchronization < 0) {
+            printf("[VirtualMac] ignoring disk policy override "
+                   "caching=%s synchronization=%s\n",
+                   cachingName.UTF8String ?: "(unset)",
+                   synchronizationName.UTF8String ?: "(unset)");
+        } else {
+            caching = overrideCaching;
+            synchronization = overrideSynchronization;
+        }
+    }
+
+    SEL extended =
+        S("initWithURL:readOnly:cachingMode:synchronizationMode:error:");
+    if ([attachmentClass instancesRespondToSelector:extended]) {
+        NSError *extendedError = nil;
+        id attachment = ((id(*)(id, SEL, id, BOOL, NSInteger, NSInteger,
+                                NSError **))objc_msgSend)(
+            [attachmentClass alloc], extended, url, NO, caching,
+            synchronization, &extendedError);
+        if (attachment) {
+            printf("[VirtualMac] disk policy caching=%s(%ld) "
+                   "synchronization=%s(%ld)%s\n",
+                   [cachingNames[caching] UTF8String], (long)caching,
+                   [synchronizationNames[synchronization - 1] UTF8String],
+                   (long)synchronization,
+                   cachingName.length || synchronizationName.length
+                       ? " (debug override)" : "");
+            return attachment;
+        }
+        printf("[VirtualMac] disk policy caching=%ld synchronization=%ld "
+               "failed: %s; using the three-argument attachment\n",
+               (long)caching, (long)synchronization,
+               extendedError.localizedDescription.UTF8String ?: "unknown");
+    } else {
+        printf("[VirtualMac] extended disk attachment unavailable; using the "
+               "three-argument attachment\n");
+    }
+    printf("[VirtualMac] disk policy caching=automatic(0) "
+           "synchronization=full(1)\n");
+    return ((id(*)(id, SEL, id, BOOL, NSError **))objc_msgSend)(
+        [attachmentClass alloc], S("initWithURL:readOnly:error:"), url, NO,
+        error);
+}
+
 static id makeConfiguration(NSString *bundlePath, NSDictionary *options,
                             NSError **error) {
     BOOL guestToolsEnabled =
@@ -5113,11 +5188,7 @@ static id makeConfiguration(NSString *bundlePath, NSDictionary *options,
     setObj(graphics, "setDisplays:", @[display]);
     setObj(configuration, "setGraphicsDevices:", @[graphics]);
 
-    id attachment = ((id(*)(id, SEL, id, BOOL, NSError **))objc_msgSend)(
-        m0(CLS("VZDiskImageStorageDeviceAttachment"), "alloc"),
-        S("initWithURL:readOnly:error:"),
-        fileURL([bundlePath stringByAppendingPathComponent:@"Disk.img"]),
-        NO, error);
+    id attachment = makeDiskImageAttachment(bundlePath, error);
     if (!attachment)
         return nil;
     id blockDevice = ((id(*)(id, SEL, id))objc_msgSend)(
