@@ -35,7 +35,6 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/sysctl.h>
-#include <sys/time.h>
 #include <sys/un.h>
 #include <sys/uio.h>
 #include <unistd.h>
