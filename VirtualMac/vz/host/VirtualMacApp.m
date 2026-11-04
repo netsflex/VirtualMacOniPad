@@ -205,6 +205,7 @@ static void setStatus(NSString *status);
 static void flushPendingScroll(void);
 static void resetScrollCoalescing(void);
 static void resetScrollDiagnostics(void);
+static void VZSetPVGEnvironment(void);
 // External display (Keynote-style: UIWindow.screen = externalScreen)
 static UIWindow *gExternalWindow;
 static UIView *gExternalMirrorView;
@@ -3973,6 +3974,10 @@ static void VZWriteInstallationAttempt(NSString *attemptPath, NSString *state,
         NULL,
     };
     [@"" writeToFile:logPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    // The installer's VMM inherits this environment and loads the same PVG
+    // compatibility layer as a normal boot. Set it here too, because no VM
+    // may have been started since the app launched.
+    VZSetPVGEnvironment();
     VZWriteInstallationAttempt(attemptPath, @"installing", @{
         @"Name": name, @"RestoreImage": url.path, @"Destination": bundlePath,
         @"StartedAt": NSDate.date,
@@ -4681,6 +4686,30 @@ static void dumpRPCHandlers(id virtualMachine, const char *phase) {
 static BOOL VZUsesModernPVG(void) {
     return [[NSBundle.mainBundle objectForInfoDictionaryKey:@"VirtualMacPVGBackendVersion"]
         integerValue] >= 27;
+}
+
+// Functional PVG settings shared by a normal boot and a restore. Without them
+// the VMM's PVG compatibility layer is not installed and the VM cannot start.
+static void VZSetPVGEnvironment(void) {
+    setenv("VZ_PVG_BACKEND_VERSION", VZUsesModernPVG() ? "27" : "13", 1);
+    setenv("PVG_TRACE", "1", 1);
+    // Ordinary clients start with a compact reservation and grow lazily below.
+    // Keep the first three long-lived system clients contiguous, however.
+    // WindowServer's Launchpad task crosses 256 MiB in one burst and older
+    // guests can stop submitting frames after that task is split across host
+    // reservations even though every individual map succeeds. Two GiB matches
+    // the proven 1.1.2 policy and still uses only a small fraction of iPadOS's
+    // roughly 63 GiB extended address space.
+    setenv("PVG_TASK_RESERVATION_MB", "256", 1);
+    // Once an ordinary client crosses its primary reservation, the PVG host
+    // adds a separate 2 GiB sparse reservation and translates PGTask's address
+    // helpers. Final Cut exceeded the old fixed 512 MiB reservation, while a
+    // launch-all stress test showed that only two of 74 ordinary clients did.
+    setenv("PVG_TASK_OVERFLOW_MB", "2048", 1);
+    setenv("PVG_LARGE_TASK_RESERVATION_MB", "2048", 1);
+    setenv("PVG_LARGE_TASK_COUNT", "3", 1);
+    setenv("PVG_MIN_TASK_RESERVATION_MB", "64", 1);
+    setenv("PVG_METALLIB_FALLBACK", "1", 1);
 }
 
 static BOOL loadExtractedFrameworks(void) {
@@ -5427,7 +5456,7 @@ static void startVirtualMachineWorker(UIView *container, id delegate,
     setenv("VZ_AVP_BOOTER",
            VZRuntimePath(@"payload/Frameworks/Virtualization.framework/Resources/AVPBooter.vmapple2.bin").fileSystemRepresentation,
            1);
-    setenv("VZ_PVG_BACKEND_VERSION", VZUsesModernPVG() ? "27" : "13", 1);
+    VZSetPVGEnvironment();
     // Consume the one-shot mode at the actual boot boundary. The current boot
     // keeps the captured value while Settings immediately returns to Off.
     gDebugLogging = VZConsumeDebugLoggingForBoot();
@@ -5441,30 +5470,12 @@ static void startVirtualMachineWorker(UIView *container, id delegate,
     // enough for its asynchronous Metal/IOSurface capability exchange.
     setenv("VMM_FACTORY_LONG_STOP", "6", 1);
     setenv("VMM_FACTORY_LONG_SETTLE_USEC", "5000000", 1);
-    setenv("PVG_TRACE", "1", 1);
     // Functional PVG task compatibility remains installed in every build;
     // this flag enables only the additional diagnostic method wrappers.
     if (gDebugLogging)
         setenv("PVG_TRACE_METHODS", "1", 1);
     else
         unsetenv("PVG_TRACE_METHODS");
-    // Ordinary clients start with a compact reservation and grow lazily below.
-    // Keep the first three long-lived system clients contiguous, however.
-    // WindowServer's Launchpad task crosses 256 MiB in one burst and older
-    // guests can stop submitting frames after that task is split across host
-    // reservations even though every individual map succeeds. Two GiB matches
-    // the proven 1.1.2 policy and still uses only a small fraction of iPadOS's
-    // roughly 63 GiB extended address space.
-    setenv("PVG_TASK_RESERVATION_MB", "256", 1);
-    // Once an ordinary client crosses its primary reservation, the PVG host
-    // adds a separate 2 GiB sparse reservation and translates PGTask's address
-    // helpers. Final Cut exceeded the old fixed 512 MiB reservation, while a
-    // launch-all stress test showed that only two of 74 ordinary clients did.
-    setenv("PVG_TASK_OVERFLOW_MB", "2048", 1);
-    setenv("PVG_LARGE_TASK_RESERVATION_MB", "2048", 1);
-    setenv("PVG_LARGE_TASK_COUNT", "3", 1);
-    setenv("PVG_MIN_TASK_RESERVATION_MB", "64", 1);
-    setenv("PVG_METALLIB_FALLBACK", "1", 1);
     BOOL metalBCSupport =
         [options[VZMetalBCSupportEnabledKey] boolValue];
     setenv("VZ_METAL_BC_SUPPORT", metalBCSupport ? "1" : "0", 1);
