@@ -18,6 +18,10 @@ static pthread_mutex_t rangeLock = PTHREAD_MUTEX_INITIALIZER;
 static VZPGGuestPhysicalRange ranges[256];
 static size_t rangeCount;
 static bool rangeOverflow;
+static id pendingResets[2];
+static size_t pendingResetCount, remappedSinceReset;
+
+static void VZModernApplyPendingResets(void);
 
 bool VZModernPVGEnabled(void) {
     const char *version = getenv("VZ_PVG_BACKEND_VERSION");
@@ -35,6 +39,7 @@ void VZModernRecordGuestMapping(void *address, uint64_t physical,
             ranges[i].physicalLength == length) {
             ranges[i].virtualAddress = address;
             replaced = true;
+            remappedSinceReset++;
             break;
         }
     }
@@ -46,6 +51,7 @@ void VZModernRecordGuestMapping(void *address, uint64_t physical,
     pthread_mutex_unlock(&rangeLock);
     fprintf(stderr, "[ModernPVG] RAM mapping physical=0x%llx length=0x%zx host=%p\n",
         (unsigned long long)physical, length, address);
+    VZModernApplyPendingResets();
 }
 
 static id VZModernCopyMemoryMapDescriptor(void) {
@@ -68,6 +74,46 @@ static id VZModernCopyMemoryMapDescriptor(void) {
     }
     fprintf(stderr, "[ModernPVG] descriptor includes %zu real RAM ranges\n", count);
     return map;
+}
+
+// A guest reboot gives guest RAM new backing pages at the same addresses, then
+// registers it with Hypervisor again. The Ventura VMM only calls -reset, which
+// keeps a map of the old pages, so a new GPU task reads stale guest page tables.
+// Do what the macOS 27 VMM does: rebuild each device's map from the new pages.
+static IMP originalDeviceReset, originalSurfaceReset;
+static __thread bool resettingWithMap;
+
+static void VZModernApplyPendingResets(void) {
+    id devices[2];
+    size_t count = 0;
+    pthread_mutex_lock(&rangeLock);
+    if (remappedSinceReset >= rangeCount) {
+        for (; count < pendingResetCount; ++count) devices[count] = pendingResets[count];
+        if (count) pendingResetCount = 0, remappedSinceReset = 0;
+    }
+    pthread_mutex_unlock(&rangeLock);
+    for (size_t i = 0; i < count; ++i) {
+        id map = VZModernCopyMemoryMapDescriptor();
+        if (!map) continue;
+        resettingWithMap = true;
+        bool result = ((bool (*)(id, SEL, id))objc_msgSend)(devices[i],
+            sel_registerName("resetWithMemoryMap:"), map);
+        resettingWithMap = false;
+        [map release];
+        fprintf(stderr, "[ModernPVG] %s resetWithMemoryMap after remap result=%d\n",
+            object_getClassName(devices[i]), result);
+    }
+}
+
+static void VZModernNoteDeviceReset(id device) {
+    pthread_mutex_lock(&rangeLock);
+    bool known = false;
+    for (size_t i = 0; i < pendingResetCount; ++i) known |= pendingResets[i] == device;
+    if (!known && pendingResetCount < sizeof(pendingResets) / sizeof(pendingResets[0]))
+        pendingResets[pendingResetCount++] = device;
+    remappedSinceReset = 0;
+    pthread_mutex_unlock(&rangeLock);
+    fprintf(stderr, "[ModernPVG] %s reset; waiting for guest RAM\n", object_getClassName(device));
 }
 
 id VZModernNewDeviceWithDescriptor(id descriptor) {
@@ -135,8 +181,34 @@ static id VZModernInitSurfaceWithDescriptor(id object, SEL selector,
     return result;
 }
 
+static void VZModernDeviceReset(id device, SEL selector) {
+    ((void (*)(id, SEL))originalDeviceReset)(device, selector);
+    if (!resettingWithMap) VZModernNoteDeviceReset(device);
+}
+
+static void VZModernSurfaceReset(id device, SEL selector) {
+    ((void (*)(id, SEL))originalSurfaceReset)(device, selector);
+    if (!resettingWithMap) VZModernNoteDeviceReset(device);
+}
+
+static void VZModernInstallResetBridge(void) {
+    SEL reset = sel_registerName("reset");
+    Class deviceClass = objc_getClass("_PGDevice");
+    Class surfaceClass = objc_getClass("PGIOSurfaceHostDevice");
+    SEL resetMap = sel_registerName("resetWithMemoryMap:");
+    if (!originalDeviceReset && [deviceClass instancesRespondToSelector:resetMap])
+        originalDeviceReset = method_setImplementation(
+            class_getInstanceMethod(deviceClass, reset), (IMP)VZModernDeviceReset);
+    if (!originalSurfaceReset && [surfaceClass instancesRespondToSelector:resetMap])
+        originalSurfaceReset = method_setImplementation(
+            class_getInstanceMethod(surfaceClass, reset), (IMP)VZModernSurfaceReset);
+    fprintf(stderr, "[ModernPVG] reset bridge device=%d surface=%d\n",
+        originalDeviceReset != NULL, originalSurfaceReset != NULL);
+}
+
 bool VZModernInstallIOSurfaceDescriptorBridge(void) {
     if (!VZModernPVGEnabled()) return false;
+    VZModernInstallResetBridge();
     Class descriptorClass = objc_getClass("PGIOSurfaceHostDeviceDescriptor");
     Class deviceClass = objc_getClass("PGIOSurfaceHostDevice");
     SEL initSelector = sel_registerName("initWithDescriptor:");
