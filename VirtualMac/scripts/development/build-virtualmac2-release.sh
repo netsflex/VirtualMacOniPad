@@ -73,7 +73,7 @@ xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=16.1 -isysroot "$S
     "$HOST/VZGuestTools.m" "$HOST/VZGuestRuntimePolicy.m" "$HOST/VZNewVMViewController.m" \
     "$HOST/VZProgressViewController.m" "$HOST/VZSettingsViewController.m" \
     "$HOST/VZTrackpadScrollBridge.m" "$HOST/VZVMLibraryViewController.m" \
-    "$HOST/VZUSBTrackpadRelay.m" "$HOST/VirtualMacApp.m" \
+    "$HOST/VZUSBTrackpadRelay.m" "$HOST/VZTouchScreenRelay.m" "$HOST/VirtualMacApp.m" \
     -o "$BIN/VirtualMac"
 xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=16.1 -isysroot "$SDK" -fblocks \
     -framework Foundation -framework UIKit \

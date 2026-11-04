@@ -37,6 +37,7 @@ need_file "$VZ_REPO_ROOT/vz/host/VZProgressViewController.m"
 need_file "$VZ_REPO_ROOT/vz/host/VZSettingsViewController.m"
 need_file "$VZ_REPO_ROOT/vz/host/VZTrackpadScrollBridge.m"
 need_file "$VZ_REPO_ROOT/vz/host/VZUSBTrackpadRelay.m"
+need_file "$VZ_REPO_ROOT/vz/host/VZTouchScreenRelay.m"
 need_file "$VZ_REPO_ROOT/vz/host/VZGuestTools.m"
 need_file "$VZ_REPO_ROOT/vz/host/VZGuestRuntimePolicy.m"
 need_file "$VZ_REPO_ROOT/vz/host/VZVMLibraryViewController.m"
@@ -124,6 +125,7 @@ xcrun --sdk iphoneos clang \
     "$VZ_REPO_ROOT/vz/host/VZTrackpadScrollBridge.m" \
     "$VZ_REPO_ROOT/vz/host/VZVMLibraryViewController.m" \
     "$VZ_REPO_ROOT/vz/host/VZUSBTrackpadRelay.m" \
+    "$VZ_REPO_ROOT/vz/host/VZTouchScreenRelay.m" \
     "$VZ_REPO_ROOT/vz/host/VirtualMacApp.m" \
     -o "$BIN"
 xcrun --sdk iphoneos clang \

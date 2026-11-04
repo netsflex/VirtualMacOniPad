@@ -354,6 +354,7 @@ static void logf_(const char *fmt, ...) {
 #include "videotoolbox_bridge.inc"
 #include "videotoolbox_encoder_bridge.inc"
 #include "usb_trackpad_proto.inc"
+#include "touch_screen_display.inc"
 
 static void log_address(const char *label, void *address) {
     Dl_info info = {0};
@@ -2960,6 +2961,7 @@ __attribute__((constructor)) static void hook_init(void) {
     videotoolbox_bridge_install();
     videotoolbox_encoder_bridge_install();
     usb_trackpad_proto_install();
+    touch_display_install();
     vmm_profiler_install();
     // Optional debug delay: set VMMHOOK_DEBUG_SLEEP=N to give lldb time to attach
     // before the VMM accepts the host's connection (catch breakpoints in the open/hv path).

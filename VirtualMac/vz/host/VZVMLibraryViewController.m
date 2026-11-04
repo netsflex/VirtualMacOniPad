@@ -37,6 +37,7 @@ static NSString * const VZBridgeInterfaceKey = @"BridgeInterface";
 static NSString * const VZBootRecoveryKey = @"BootRecovery";
 static NSString * const VZSharedDirectoriesKey = @"SharedDirectories";
 static NSString * const VZPointingDeviceKey = @"PointingDevice";
+static NSString * const VZTouchScreenBehaviorKey = @"TouchScreenBehavior";
 static NSString * const VZKeyboardDeviceKey = @"KeyboardDevice";
 static NSString * const VZAudioOutputEnabledKey = @"AudioOutputEnabled";
 static NSString * const VZAudioInputEnabledKey = @"AudioInputEnabled";
@@ -355,6 +356,7 @@ NSDictionary *VZVMDefaultOptions(void)
         VZBootRecoveryKey: @NO,
         VZSharedDirectoriesKey: @[],
         VZPointingDeviceKey: @"MacTrackpad",
+        VZTouchScreenBehaviorKey: @"Pointer",
         VZKeyboardDeviceKey: @"MacKeyboard",
         VZApplePencilPressureTiltEnabledKey: @NO,
         VZVirtualMacGuestToolsEnabledKey: @YES,
@@ -841,7 +843,7 @@ void VZRemovePaths(NSArray<NSString *> *paths)
     if (section == 2)
         return self.bundlePath ? 4 : 3;
     if (section == 3)
-        return 3;
+        return 4;
     if (section == 4)
         return [VZDisplaySelectionForOptions(self.options)
                    isEqualToString:@"Custom"]
@@ -981,6 +983,11 @@ void VZRemovePaths(NSArray<NSString *> *paths)
             [pointing isEqualToString:@"USBMouse"] ? VZL(@"USB Mouse")
             : [pointing isEqualToString:@"MagicTrackpad"] ? VZL(@"Magic Trackpad")
             : VZL(@"Mac Trackpad");
+    } else if (indexPath.section == 3 && indexPath.row == 2) {
+        cell.textLabel.text = VZL(@"Touch Screen");
+        cell.detailTextLabel.text =
+            [self.options[VZTouchScreenBehaviorKey] isEqualToString:@"NativeTouch"]
+            ? VZL(@"Native Touch") : VZL(@"Pointer");
     } else if (indexPath.section == 3) {
         NSString *fullTitle = VZL(@"Apple Pencil Pressure and Tilt");
         CGFloat available = MAX(CGRectGetWidth(tableView.bounds) - 147.0,
@@ -1406,6 +1413,14 @@ void VZRemovePaths(NSArray<NSString *> *paths)
             @{@"title": VZL(@"Magic Trackpad (Native Gestures, Experimental)"),
               @"value": @"MagicTrackpad"},
             ] key:VZPointingDeviceKey
+            fromCell:[tableView cellForRowAtIndexPath:indexPath]];
+    } else if (indexPath.section == 3 && indexPath.row == 2) {
+        [self chooseTitle:VZL(@"Touch Screen") message:
+            VZL(@"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager.")
+            choices:@[
+            @{@"title": VZL(@"Pointer"), @"value": @"Pointer"},
+            @{@"title": VZL(@"Native Touch (Experimental)"), @"value": @"NativeTouch"},
+            ] key:VZTouchScreenBehaviorKey
             fromCell:[tableView cellForRowAtIndexPath:indexPath]];
     } else if (indexPath.section == 4 && indexPath.row == 0) {
         [self chooseDisplayResolutionFromCell:

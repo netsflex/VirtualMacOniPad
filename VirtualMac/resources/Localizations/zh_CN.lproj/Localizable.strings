@@ -319,3 +319,8 @@
 "You can assign between %llu and %llu processor cores to this Virtual Mac, with %lu processor cores as the recommendation.\n\nMaxing out processor core assignment does not guarantee improved performance in Virtual Mac, as iPadOS also needs processor power to coordinate underlying tasks." = "你可以为此虚拟Mac分配%llu至%llu个处理器核心，建议分配%lu个。\n\n将处理器核心数设为上限并不一定能提升虚拟Mac的性能，因为iPadOS也需要处理器资源来处理系统任务。";
 "Your changes to this Virtual Mac will not be saved." = "你对此虚拟Mac所做的更改不会被保存。";
 "“%@” and all files stored in it will be permanently deleted." = "“%@”及其中存储的所有文件将被永久删除。";
+"Touch Screen" = "触摸屏";
+"Pointer" = "映射为指针";
+"Native Touch" = "原生触摸";
+"Native Touch (Experimental)" = "原生触摸（实验性）";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "“映射为指针”把触摸转换成指针和滚动事件，适用于所有客户机系统。“原生触摸”为 macOS 提供真正的触摸屏和它自己的手势，需要 macOS 27.3 或更高版本，不支持台前调度。";

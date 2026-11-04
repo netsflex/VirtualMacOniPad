@@ -319,3 +319,8 @@
 "You can assign between %llu and %llu processor cores to this Virtual Mac, with %lu processor cores as the recommendation.\n\nMaxing out processor core assignment does not guarantee improved performance in Virtual Mac, as iPadOS also needs processor power to coordinate underlying tasks." = "You can assign between %llu and %llu processor cores to this Virtual Mac, with %lu processor cores as the recommendation.\n\nMaxing out processor core assignment does not guarantee improved performance in Virtual Mac, as iPadOS also needs processor power to coordinate underlying tasks.";
 "Your changes to this Virtual Mac will not be saved." = "Your changes to this Virtual Mac will not be saved.";
 "“%@” and all files stored in it will be permanently deleted." = "“%@” and all files stored in it will be permanently deleted.";
+"Touch Screen" = "Touch Screen";
+"Pointer" = "Pointer";
+"Native Touch" = "Native Touch";
+"Native Touch (Experimental)" = "Native Touch (Experimental)";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager.";

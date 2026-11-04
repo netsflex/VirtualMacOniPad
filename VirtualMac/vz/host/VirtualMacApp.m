@@ -27,6 +27,8 @@ extern CFTimeInterval VZUSBTrackpadRelayLastMouseTime(void);
 extern void VZUSBTrackpadRelayNote(NSString *message);
 extern void VZUSBTrackpadRelaySetMouseHandler(void (*moved)(double dx, double dy),
                                               void (*buttons)(long buttons));
+#import "VZTouchScreenRelay.h"
+#include <CommonCrypto/CommonDigest.h>
 #include <dlfcn.h>
 #include <objc/runtime.h>
 #include <objc/message.h>
@@ -475,6 +477,41 @@ static BOOL gGuestCursorKnown;
 static BOOL gPointerLocked;
 static CFTimeInterval gLastMouseDrive;
 
+// With Native Touch, VZTouchScreenRelay sends the fingers on the screen to the
+// guest; a trackpad, a mouse and the Pencil keep using this input path.
+static BOOL touchScreenOwnsDirectTouches(NSSet<UITouch *> *touches) {
+    return VZTouchScreenRelayActive() && touches.anyObject.type == UITouchTypeDirect;
+}
+
+static CGRect touchScreenViewport(UIView **view) {
+    *view = gInputView;
+    if (!gInputView)
+        return CGRectZero;
+    // gInputView covers the visible guest viewport, except while mirroring.
+    return gExternalWindow ? displayViewportRect(gDisplayPixelSize, gInputView.bounds)
+                           : gInputView.bounds;
+}
+
+static BOOL usesNativeTouch(NSDictionary *options) {
+    // Recovery has no use for a touch screen, and needs the pointer.
+    return [options[@"TouchScreenBehavior"] isEqualToString:@"NativeTouch"] &&
+        ![options[@"BootRecovery"] boolValue];
+}
+
+// The UUID the guest's display and touch screen share: stable for a virtual
+// machine and different from any other's.
+static NSString *touchScreenDisplayUUID(NSData *machineIdentifier) {
+    static const char salt[] = "VirtualMac touch screen display";
+    NSMutableData *input = [NSMutableData dataWithData:machineIdentifier];
+    [input appendBytes:salt length:sizeof salt - 1];
+    uint8_t digest[CC_SHA256_DIGEST_LENGTH];
+    CC_SHA256(input.bytes, (CC_LONG)input.length, digest);
+    digest[6] = (digest[6] & 0x0f) | 0x50;
+    digest[8] = (digest[8] & 0x3f) | 0x80;
+    NSUUID *uuid = [[[NSUUID alloc] initWithUUIDBytes:digest] autorelease];
+    return uuid.UUIDString;
+}
+
 static void notePointerInputSource(BOOL directTouch) {
     gLastInputWasDirectTouch = directTouch;
     if (directTouch)
@@ -511,6 +548,16 @@ static BOOL shouldShowStatusLabel(void) {
     if ([processInfo.arguments containsObject:@"--show-status-label"])
         return YES;
     return [VZAppSettings.sharedSettings boolForKey:VZShowStatusLabelKey];
+}
+
+static void applyTouchScreenGestureRouting(void) {
+    if (!VZTouchScreenRelayActive())
+        return;
+    gTouchScrollRecognizer.enabled = NO;
+    NSArray *allowed = @[@(UITouchTypeIndirectPointer)];
+    gPinchRecognizer.allowedTouchTypes = allowed;
+    gRotationRecognizer.allowedTouchTypes = allowed;
+    gSmartMagnifyRecognizer.allowedTouchTypes = allowed;
 }
 
 static void resetPointerSession(BOOL releaseButtons) {
@@ -2917,6 +2964,8 @@ static bool pencilVsockSend(uint8_t type, float pressure,
 - (void)touchesBegan:(NSSet<UITouch *> *)touches
            withEvent:(UIEvent *)event
 {
+    if (touchScreenOwnsDirectTouches(touches))
+        return;
     UITouch *touch = [touches anyObject];
     // With the Magic Trackpad, trackpad clicks reach the guest as Magic
     // Trackpad frames and mouse buttons come from HID (relayMouseButtons).
@@ -3009,6 +3058,8 @@ static bool pencilVsockSend(uint8_t type, float pressure,
 - (void)touchesMoved:(NSSet<UITouch *> *)touches
            withEvent:(UIEvent *)event
 {
+    if (touchScreenOwnsDirectTouches(touches))
+        return;
     UITouch *touch = [touches anyObject];
     // With the Magic Trackpad, trackpad clicks reach the guest as Magic
     // Trackpad frames and mouse buttons come from HID (relayMouseButtons).
@@ -3069,6 +3120,8 @@ static bool pencilVsockSend(uint8_t type, float pressure,
 - (void)touchesEnded:(NSSet<UITouch *> *)touches
            withEvent:(UIEvent *)event
 {
+    if (touchScreenOwnsDirectTouches(touches))
+        return;
     // type=2 (proximity_leave): Pencil lifted off screen.
     // Pressure is 0 because the pen is no longer touching.
     // altitude=π/2 (perpendicular): the pen has no meaningful tilt
@@ -3123,6 +3176,8 @@ static bool pencilVsockSend(uint8_t type, float pressure,
 - (void)touchesCancelled:(NSSet<UITouch *> *)touches
                withEvent:(UIEvent *)event
 {
+    if (touchScreenOwnsDirectTouches(touches))
+        return;
     UITouch *touch = [touches anyObject];
     // With the Magic Trackpad, trackpad clicks reach the guest as Magic
     // Trackpad frames and mouse buttons come from HID (relayMouseButtons).
@@ -3362,6 +3417,7 @@ static bool pencilVsockSend(uint8_t type, float pressure,
         gPinchRecognizer.allowedTouchTypes = allowed;
         gRotationRecognizer.allowedTouchTypes = allowed;
         gSmartMagnifyRecognizer.allowedTouchTypes = allowed;
+        applyTouchScreenGestureRouting();
     }
 }
 
@@ -4315,6 +4371,7 @@ static void VZWriteInstallationAttempt(NSString *attemptPath, NSString *state,
     gGlobeDown = NO;
     gPointingDevice = nil;
     VZUSBTrackpadRelayStop();
+    VZTouchScreenRelayStop();
     gGuestCursorKnown = NO;
     gLastMouseDrive = 0;
     resetScrollCoalescing();
@@ -5250,17 +5307,36 @@ static id makeConfiguration(NSString *bundlePath, NSDictionary *options,
            useUSBMouse ? "USB Mouse" : useMagicTrackpad
                ? "Mac Trackpad + Magic Trackpad" : "Mac Trackpad",
            pointing ? object_getClassName(pointing) : "(unavailable)");
+    // Multi-touch devices: the Magic Trackpad is the first, so that its relay finds
+    // it, and the touch screen the last.
+    NSMutableArray *multiTouchDevices = [NSMutableArray array];
+    BOOL canAddMultiTouch =
+        [configuration respondsToSelector:S("_setMultiTouchDevices:")];
     // The VMM hook presents the framework's USB touch screen as a USB Magic
     // Trackpad 2 (usb_trackpad_proto.inc).
-    if (useMagicTrackpad &&
-        [configuration respondsToSelector:S("_setMultiTouchDevices:")]) {
+    if (useMagicTrackpad && canAddMultiTouch) {
         id touchScreen = NEW("_VZUSBTouchScreenConfiguration");
         if (touchScreen)
-            setObj(configuration, "_setMultiTouchDevices:", @[touchScreen]);
+            [multiTouchDevices addObject:touchScreen];
         printf("[VirtualMac] configured Magic Trackpad touch device=%s\n",
                touchScreen ? object_getClassName(touchScreen) : "(unavailable)");
         [touchScreen release];
     }
+    // The VMM inherits this variable; see touch_screen_display.inc.
+    unsetenv("VZ_TOUCH_DISPLAY_UUID");
+    if (usesNativeTouch(options) && canAddMultiTouch) {
+        id touchScreen = NEW("_VZAppleTouchScreenConfiguration");
+        if (touchScreen) {
+            [multiTouchDevices addObject:touchScreen];
+            setenv("VZ_TOUCH_DISPLAY_UUID",
+                   touchScreenDisplayUUID(machineIdentifierData).UTF8String, 1);
+        }
+        printf("[VirtualMac] configured native touch device=%s\n",
+               touchScreen ? object_getClassName(touchScreen) : "(unavailable)");
+        [touchScreen release];
+    }
+    if (multiTouchDevices.count)
+        setObj(configuration, "_setMultiTouchDevices:", multiTouchDevices);
     configureAudio(configuration, options);
     configureVideoToolbox(configuration, options);
     configureNetwork(configuration, options);
@@ -5546,7 +5622,11 @@ static void startVirtualMachineWorker(UIView *container, id delegate,
     gKeyboard = [keyboards firstObject];
     gPointingDevice = [pointingDevices firstObject];
     VZUSBTrackpadRelaySetMouseHandler(relayMouseMoved, relayMouseButtons);
-    VZUSBTrackpadRelayStart(gVirtualMachine);
+    if ([options[@"PointingDevice"] isEqualToString:@"MagicTrackpad"])
+        VZUSBTrackpadRelayStart(gVirtualMachine);
+    if (usesNativeTouch(options))
+        VZTouchScreenRelayStart(gVirtualMachine, touchScreenViewport);
+    applyTouchScreenGestureRouting();
     dumpRPCHandlers(gVirtualMachine, "after-init");
     // setFramebuffer: installs the process_frame_update handler needed by the
     // VMM. The host hook holds its set_frame_rate message until start succeeds.
@@ -6004,6 +6084,7 @@ static void disconnectExternalDisplay(void) {
         smartMagnify.allowedTouchTypes = @[@(UITouchTypeIndirectPointer)];
     }
     [inputView addGestureRecognizer:smartMagnify];
+    applyTouchScreenGestureRouting();
     [controller.view addSubview:inputView];
 
     gCursorView = [[UIImageView alloc] initWithFrame:CGRectZero];
