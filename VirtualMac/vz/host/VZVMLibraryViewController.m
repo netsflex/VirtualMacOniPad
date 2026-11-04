@@ -2749,9 +2749,11 @@ static const CGFloat VZLibraryHorizontalInset = 24.0;
     navigation.modalPresentationStyle = UIModalPresentationPageSheet;
     navigation.modalInPresentation = YES;
     navigation.preferredContentSize = CGSizeMake(620, 280);
-    // A security-scoped file selected with asCopy:YES is commonly an APFS
-    // clone on the same data volume, so this second durable copy completes
-    // almost immediately. Presenting and then immediately dismissing a modal
+    // The picker opens with asCopy:YES, so source is our own copy in the
+    // -Inbox directory, never the user's original. Move it rather than copy
+    // it: on the same data volume this is an immediate rename, and no second
+    // copy waits in the Inbox for the system to clear it. Presenting and then
+    // immediately dismissing a modal
     // progress sheet causes a distracting flash between the document picker
     // and configuration screen. Delay the progress UI; genuinely slow copies
     // still receive feedback without adding latency to the normal path.
@@ -2765,8 +2767,10 @@ static const CGFloat VZLibraryHorizontalInset = 24.0;
     });
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSError *copyError = nil;
-        BOOL copied = [NSFileManager.defaultManager copyItemAtPath:source.path
+        BOOL copied = [NSFileManager.defaultManager moveItemAtPath:source.path
             toPath:destination error:&copyError];
+        if (!copied)
+            [NSFileManager.defaultManager removeItemAtURL:source error:nil];
         [source stopAccessingSecurityScopedResource];
         dispatch_async(dispatch_get_main_queue(), ^{
             copyFinished = YES;
@@ -3089,6 +3093,8 @@ static const CGFloat VZLibraryHorizontalInset = 24.0;
     return;
   NSString *extension = url.pathExtension.lowercaseString;
   if (![extension isEqualToString:@"ipsw"]) {
+    // asCopy:YES made this copy for us; don't leave it in the Inbox.
+    [NSFileManager.defaultManager removeItemAtURL:url error:nil];
     UIAlertController *invalid = [UIAlertController
         alertControllerWithTitle:VZL(@"Unsupported Restore Image")
                          message:VZL(@"Choose a macOS IPSW restore image.")

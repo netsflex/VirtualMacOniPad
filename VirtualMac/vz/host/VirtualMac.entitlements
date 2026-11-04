@@ -24,6 +24,8 @@
 	<true/>
 	<key>com.apple.private.security.no-container</key>
 	<true/>
+	<key>com.apple.private.security.storage.AppDataContainers</key>
+	<true/>
 	<key>platform-application</key>
 	<true/>
 	<key>com.apple.private.amfi.can-execute-cdhash</key>
