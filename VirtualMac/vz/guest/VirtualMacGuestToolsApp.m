@@ -71,7 +71,11 @@ static NSString *VML(NSString *key)
 
 - (void)publishReady
 {
-    if (!self.readyToken.length || !self.statusItem.button || !self.statusItem.menu)
+    // The marker only says this process is running and has applied the host
+    // configuration. On some Aqua boots the status item's button is still nil
+    // here, and this is published only once, so waiting on AppKit would leave
+    // the host reinstalling Guest Tools every 10 seconds for the whole session.
+    if (!self.readyToken.length)
         return;
     NSString *temporary = [VMReadyPath stringByAppendingFormat:@".%d", getpid()];
     NSData *data = [self.readyToken dataUsingEncoding:NSUTF8StringEncoding];

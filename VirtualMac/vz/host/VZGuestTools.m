@@ -653,6 +653,14 @@ static void VZGuestToolsInstallPayload(uint64_t generation,
             completion(NO);
             return;
         }
+        NSString *update =
+            @"set -e; /bin/mkdir -p /Library/VirtualMac; "
+             "/usr/sbin/chown root:wheel "
+                 "/tmp/VirtualMacGuestToolsConfiguration.plist; "
+             "/bin/chmod 644 "
+                 "/tmp/VirtualMacGuestToolsConfiguration.plist; "
+             "/bin/mv -f /tmp/VirtualMacGuestToolsConfiguration.plist "
+                 "/Library/VirtualMac/HostConfiguration.plist";
         NSString *check = [NSString stringWithFormat:
             @"test \"$(cat /Library/VirtualMac/.build 2>/dev/null)\" = '%@'",
             build];
@@ -662,14 +670,6 @@ static void VZGuestToolsInstallPayload(uint64_t generation,
             if (generation != __atomic_load_n(&gGuestProvisioningGeneration,
                                               __ATOMIC_ACQUIRE)) return;
             if (current) {
-                NSString *update =
-                    @"set -e; /bin/mkdir -p /Library/VirtualMac; "
-                     "/usr/sbin/chown root:wheel "
-                         "/tmp/VirtualMacGuestToolsConfiguration.plist; "
-                     "/bin/chmod 644 "
-                         "/tmp/VirtualMacGuestToolsConfiguration.plist; "
-                     "/bin/mv -f /tmp/VirtualMacGuestToolsConfiguration.plist "
-                         "/Library/VirtualMac/HostConfiguration.plist";
                 VZGuestToolsRun(@"/bin/sh", @[@"-c", update],
                     ^(BOOL updated, NSData *updateOutput) {
                     (void)updateOutput;
@@ -760,7 +760,28 @@ static void VZGuestToolsInstallPayload(uint64_t generation,
                     if (!installed) {
                         VZGuestToolsLog(@"payload setup failed: %@",
                                         text ?: @"unknown error");
-                        completion(NO);
+                        // The setup script boots the agent out before
+                        // replacing it. If it stops partway, install the new
+                        // configuration and restart whatever agent is still on
+                        // disk, so it can acknowledge this session's token and
+                        // end the retry loop. A missing agent just fails to
+                        // bootstrap.
+                        VZGuestToolsRun(@"/bin/sh", @[@"-c", update],
+                            ^(BOOL restored, NSData *restoreOutput) {
+                            (void)restored;
+                            (void)restoreOutput;
+                            if (generation != __atomic_load_n(
+                                    &gGuestProvisioningGeneration,
+                                    __ATOMIC_ACQUIRE)) {
+                                completion(NO);
+                                return;
+                            }
+                            VZGuestToolsActivate(NO, generation,
+                                ^(BOOL activated) {
+                                    (void)activated;
+                                    completion(NO);
+                                });
+                        });
                         return;
                     }
                     VZGuestToolsLog(@"installed guest payload build %@", build);
