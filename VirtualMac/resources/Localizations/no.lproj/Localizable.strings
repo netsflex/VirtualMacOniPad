@@ -158,6 +158,8 @@
 "Name" = "Navn";
 "Name Already Used" = "Navnet er allerede i bruk";
 "NAT: Share %@" = "NAT: Del %@";
+"Native Touch" = "Innebygd berøring";
+"Native Touch (Experimental)" = "Innebygd berøring (eksperimentell)";
 "Network" = "Nettverk";
 "Network Attachment" = "Nettverkstilkobling";
 "Network Bridge (%@)" = "Nettverksbro (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "I mer enn et tiår har folk drømt om å kjøre macOS på iPad. I dag blir drømmen virkelighet. Opprett en virtuell Mac for å komme i gang.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "I mer enn et tiår har folk drømt om å ta med seg macOS overalt. I dag blir den drømmen virkelighet. Opprett en virtuell Mac for å komme i gang.";
 "Pixels Per Inch" = "Piksler per tomme";
+"Pointer" = "Peker";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "«Peker» gjør berøringer om til peker- og rullehendelser og fungerer med alle gjestesystemer. «Innebygd berøring» gir macOS en berøringsskjerm med egne bevegelser. Krever macOS 27.3 eller nyere og støtter ikke Stage Manager.";
 "Pointing Device" = "Pekeenhet";
 "Portrait iPad" = "iPad stående";
 "Portrait iPhone" = "iPhone stående";
@@ -273,6 +277,7 @@
 "Touch" = "Berøring";
 "Touch and Hold Right Click" = "Trykk og hold for høyreklikk";
 "Touch and Hold to Secondary Click" = "Trykk og hold for sekundært klikk";
+"Touch Screen" = "Berøringsskjerm";
 "Turn Off Virtual Mac Guest Tools?" = "Slå av Virtual Mac-gjesteverktøy?";
 "Two Finger Tap Right Click" = "Trykk med to fingre for høyreklikk";
 "Two Finger Tap to Secondary Click" = "Trykk med to fingre for sekundært klikk";

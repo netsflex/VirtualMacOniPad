@@ -158,6 +158,8 @@
 "Name" = "Nazwa";
 "Name Already Used" = "Nazwa jest już używana";
 "NAT: Share %@" = "NAT: udostępnij %@";
+"Native Touch" = "Natywny dotyk";
+"Native Touch (Experimental)" = "Natywny dotyk (eksperymentalny)";
 "Network" = "Sieć";
 "Network Attachment" = "Połączenie sieciowe";
 "Network Bridge (%@)" = "Most sieciowy (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Od ponad dekady ludzie marzą o uruchomieniu macOS na iPadzie. Dziś to marzenie się spełnia. Aby rozpocząć, utwórz wirtualnego Maca.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Od ponad dekady ludzie marzą o tym, by zabierać macOS wszędzie ze sobą. Dziś to marzenie staje się rzeczywistością. Aby rozpocząć, utwórz wirtualnego Maca.";
 "Pixels Per Inch" = "Piksele na cal";
+"Pointer" = "Wskaźnik";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "„Wskaźnik” zamienia dotknięcia na zdarzenia wskaźnika i przewijania i działa z każdym systemem gościa. „Natywny dotyk” daje macOS ekran dotykowy z własnymi gestami. Wymaga macOS 27.3 lub nowszego i nie obsługuje Stage Managera.";
 "Pointing Device" = "Urządzenie wskazujące";
 "Portrait iPad" = "iPad pionowo";
 "Portrait iPhone" = "iPhone pionowo";
@@ -273,6 +277,7 @@
 "Touch" = "Dotyk";
 "Touch and Hold Right Click" = "Dotknij i przytrzymaj, aby kliknąć prawym";
 "Touch and Hold to Secondary Click" = "Dotknij i przytrzymaj, aby uzyskać dodatkowe kliknięcie";
+"Touch Screen" = "Ekran dotykowy";
 "Turn Off Virtual Mac Guest Tools?" = "Wyłączyć narzędzia gościa Virtual Mac?";
 "Two Finger Tap Right Click" = "Stuknij dwoma palcami, aby kliknąć prawym";
 "Two Finger Tap to Secondary Click" = "Stuknięcie dwoma palcami w celu uzyskania dodatkowego kliknięcia";

@@ -158,6 +158,8 @@
 "Name" = "Naziv";
 "Name Already Used" = "Naziv se već koristi";
 "NAT: Share %@" = "NAT: Dijeli %@";
+"Native Touch" = "Izvorni dodir";
+"Native Touch (Experimental)" = "Izvorni dodir (eksperimentalno)";
 "Network" = "Mreža";
 "Network Attachment" = "Mrežna veza";
 "Network Bridge (%@)" = "Mrežni most (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Ljudi više od desetljeća sanjaju o pokretanju sustava macOS na iPadu. Danas taj san postaje stvarnost. Za početak izradite virtualni Mac.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Ljudi već više od desetljeća sanjaju o tome da macOS ponesu kamo god krenu. Danas taj san postaje stvarnost. Za početak izradite virtualni Mac.";
 "Pixels Per Inch" = "Pikseli po inču";
+"Pointer" = "Pokazivač";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "„Pokazivač” pretvara dodire u događaje pokazivača i pomicanja i radi sa svim gostujućim sustavima. „Izvorni dodir” daje macOS-u zaslon osjetljiv na dodir s vlastitim gestama. Zahtijeva macOS 27.3 ili noviji i ne podržava Stage Manager.";
 "Pointing Device" = "Pokazivački uređaj";
 "Portrait iPad" = "iPad uspravno";
 "Portrait iPhone" = "iPhone uspravno";
@@ -273,6 +277,7 @@
 "Touch" = "Dodir";
 "Touch and Hold Right Click" = "Dodir i držanje za desni klik";
 "Touch and Hold to Secondary Click" = "Dodirnite i držite za sekundarni klik";
+"Touch Screen" = "Zaslon osjetljiv na dodir";
 "Turn Off Virtual Mac Guest Tools?" = "Isključiti gostujuće alate za Virtual Mac?";
 "Two Finger Tap Right Click" = "Dodir s dva prsta za desni klik";
 "Two Finger Tap to Secondary Click" = "Dodir s dva prsta za sekundarni klik";

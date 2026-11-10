@@ -158,6 +158,8 @@
 "Name" = "Nombre";
 "Name Already Used" = "El nombre ya está en uso";
 "NAT: Share %@" = "NAT: compartir %@";
+"Native Touch" = "Táctil nativo";
+"Native Touch (Experimental)" = "Táctil nativo (experimental)";
 "Network" = "Red";
 "Network Attachment" = "Conexión de red";
 "Network Bridge (%@)" = "Puente de red (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Durante más de una década, la gente ha soñado con ejecutar macOS en el iPad. Hoy ese sueño se hace realidad. Crea un Mac virtual para empezar.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Durante más de una década, la gente ha soñado con llevar macOS a todas partes. Hoy, ese sueño se hace realidad. Crea un Mac virtual para empezar.";
 "Pixels Per Inch" = "Píxeles por pulgada";
+"Pointer" = "Puntero";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "«Puntero» convierte los toques en eventos de puntero y desplazamiento y funciona con cualquier sistema invitado. «Táctil nativo» ofrece a macOS una pantalla táctil con sus propios gestos. Requiere macOS 27.3 o posterior y no es compatible con Stage Manager.";
 "Pointing Device" = "Dispositivo señalador";
 "Portrait iPad" = "iPad en vertical";
 "Portrait iPhone" = "iPhone en vertical";
@@ -273,6 +277,7 @@
 "Touch" = "Tacto";
 "Touch and Hold Right Click" = "Mantener pulsado para hacer clic derecho";
 "Touch and Hold to Secondary Click" = "Toque y mantenga presionado para hacer un clic secundario";
+"Touch Screen" = "Pantalla táctil";
 "Turn Off Virtual Mac Guest Tools?" = "¿Desactivar las herramientas de invitado de Virtual Mac?";
 "Two Finger Tap Right Click" = "Tocar con dos dedos para hacer clic derecho";
 "Two Finger Tap to Secondary Click" = "Toque con dos dedos para hacer clic secundario";

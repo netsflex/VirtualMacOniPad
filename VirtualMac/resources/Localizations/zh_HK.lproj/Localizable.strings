@@ -158,6 +158,8 @@
 "Name" = "名稱";
 "Name Already Used" = "名稱已被使用";
 "NAT: Share %@" = "NAT：共享%@";
+"Native Touch" = "原生觸控";
+"Native Touch (Experimental)" = "原生觸控（實驗性）";
 "Network" = "網絡";
 "Network Attachment" = "網絡連接";
 "Network Bridge (%@)" = "網絡橋接（%@）";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "十多年來，人們一直夢想在iPad上執行macOS。今⁠天，這個夢想終於成真。建立虛擬Mac以開始使用。";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "十多年來，人們一直夢想可以隨時隨地使用macOS。今天，這個夢想終於成真。建立虛擬Mac以開始。";
 "Pixels Per Inch" = "每英寸像素數";
+"Pointer" = "映射為指標";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "「映射為指標」會將觸控轉換為指標和捲動事件，適用於所有客體系統。「原生觸控」為 macOS 提供真正的觸控屏幕和它自己的手勢，需要 macOS 27.3 或以上版本，不支援幕前調度。";
 "Pointing Device" = "指針設備";
 "Portrait iPad" = "iPad直向";
 "Portrait iPhone" = "iPhone直向";
@@ -273,6 +277,7 @@
 "Touch" = "觸控";
 "Touch and Hold Right Click" = "觸碰並按住以按右鍵";
 "Touch and Hold to Secondary Click" = "觸碰並按住以使用輔助按鈕";
+"Touch Screen" = "觸控屏幕";
 "Turn Off Virtual Mac Guest Tools?" = "關閉虛擬Mac訪客工具？";
 "Two Finger Tap Right Click" = "雙指觸碰以按右鍵";
 "Two Finger Tap to Secondary Click" = "用兩指點一下以使用輔助按鈕";

@@ -158,6 +158,8 @@
 "Name" = "Name";
 "Name Already Used" = "Name bereits vergeben";
 "NAT: Share %@" = "NAT: %@ teilen";
+"Native Touch" = "Natives Touch";
+"Native Touch (Experimental)" = "Natives Touch (experimentell)";
 "Network" = "Netzwerk";
 "Network Attachment" = "Netzwerkverbindung";
 "Network Bridge (%@)" = "Netzwerk-Bridge (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Seit mehr als einem Jahrzehnt träumen Menschen davon, macOS auf dem iPad auszuführen. Heute wird dieser Traum wahr. Erstellen Sie einen virtuellen Mac, um loszulegen.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Seit mehr als einem Jahrzehnt träumen Menschen davon, macOS überallhin mitzunehmen. Heute wird dieser Traum Wirklichkeit. Erstelle einen virtuellen Mac, um loszulegen.";
 "Pixels Per Inch" = "Pixel pro Zoll";
+"Pointer" = "Zeiger";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "„Zeiger“ wandelt Berührungen in Zeiger- und Scroll-Ereignisse um und funktioniert mit jedem Gastsystem. „Natives Touch“ gibt macOS einen Touchscreen mit eigenen Gesten. Erfordert macOS 27.3 oder neuer und unterstützt Stage Manager nicht.";
 "Pointing Device" = "Zeigegerät";
 "Portrait iPad" = "iPad im Hochformat";
 "Portrait iPhone" = "iPhone im Hochformat";
@@ -273,6 +277,7 @@
 "Touch" = "Touch";
 "Touch and Hold Right Click" = "Gedrückthalten als Rechtsklick";
 "Touch and Hold to Secondary Click" = "Berühren und halten Sie für einen sekundären Klick";
+"Touch Screen" = "Touchscreen";
 "Turn Off Virtual Mac Guest Tools?" = "Virtual Mac-Gastwerkzeuge deaktivieren?";
 "Two Finger Tap Right Click" = "Zweifingertipp als Rechtsklick";
 "Two Finger Tap to Secondary Click" = "Zwei-Finger-Tippen für sekundären Klick";

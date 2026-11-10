@@ -158,6 +158,8 @@
 "Name" = "ชื่อ";
 "Name Already Used" = "ชื่อนี้ถูกใช้แล้ว";
 "NAT: Share %@" = "NAT: แชร์ %@";
+"Native Touch" = "การสัมผัสแบบเนทีฟ";
+"Native Touch (Experimental)" = "การสัมผัสแบบเนทีฟ (ทดลอง)";
 "Network" = "เครือข่าย";
 "Network Attachment" = "การเชื่อมต่อเครือข่าย";
 "Network Bridge (%@)" = "บริดจ์เครือข่าย (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "ผู้คนใฝ่ฝันที่จะใช้งาน macOS บน iPad มานานกว่าทศวรรษ วันนี้ความฝันนั้นเป็นจริง สร้าง Mac เสมือนเพื่อเริ่มต้นใช้งาน";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "ผู้คนใฝ่ฝันที่จะพกพา macOS ไปได้ทุกที่มานานกว่าทศวรรษ วันนี้ความฝันนั้นเป็นจริงแล้ว สร้าง Mac เสมือนเพื่อเริ่มต้นใช้งาน";
 "Pixels Per Inch" = "พิกเซลต่อนิ้ว";
+"Pointer" = "ตัวชี้";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "“ตัวชี้” จะแปลงการสัมผัสเป็นเหตุการณ์ตัวชี้และการเลื่อน และใช้งานได้กับระบบเกสต์ทุกระบบ “การสัมผัสแบบเนทีฟ” จะให้ macOS มีหน้าจอสัมผัสพร้อมท่าทางของตัวเอง ต้องใช้ macOS 27.3 ขึ้นไป และไม่รองรับ Stage Manager";
 "Pointing Device" = "อุปกรณ์ชี้ตำแหน่ง";
 "Portrait iPad" = "iPad แนวตั้ง";
 "Portrait iPhone" = "iPhone แนวตั้ง";
@@ -273,6 +277,7 @@
 "Touch" = "การสัมผัส";
 "Touch and Hold Right Click" = "แตะค้างเพื่อคลิกขวา";
 "Touch and Hold to Secondary Click" = "แตะค้างไว้เพื่อคลิกรอง";
+"Touch Screen" = "หน้าจอสัมผัส";
 "Turn Off Virtual Mac Guest Tools?" = "ปิดเครื่องมือเกสต์ของ Virtual Mac หรือไม่";
 "Two Finger Tap Right Click" = "แตะสองนิ้วเพื่อคลิกขวา";
 "Two Finger Tap to Secondary Click" = "แตะสองนิ้วเพื่อคลิกรอง";

@@ -158,6 +158,8 @@
 "Name" = "Nome";
 "Name Already Used" = "Nome já usado";
 "NAT: Share %@" = "NAT: compartilhar %@";
+"Native Touch" = "Toque nativo";
+"Native Touch (Experimental)" = "Toque nativo (experimental)";
 "Network" = "Rede";
 "Network Attachment" = "Conexão de rede";
 "Network Bridge (%@)" = "Ponte de rede (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Há mais de uma década, as pessoas sonham em executar o macOS no iPad. Hoje, esse sonho se torna realidade. Crie um Mac virtual para começar.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Há mais de uma década, as pessoas sonham em levar o macOS aonde quer que vão. Hoje, esse sonho se torna realidade. Crie um Mac virtual para começar.";
 "Pixels Per Inch" = "Pixels por polegada";
+"Pointer" = "Ponteiro";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "“Ponteiro” converte toques em eventos de ponteiro e rolagem e funciona com qualquer sistema convidado. “Toque nativo” oferece ao macOS uma tela sensível ao toque com seus próprios gestos. Requer macOS 27.3 ou posterior e não é compatível com o Stage Manager.";
 "Pointing Device" = "Dispositivo apontador";
 "Portrait iPad" = "iPad na vertical";
 "Portrait iPhone" = "iPhone na vertical";
@@ -273,6 +277,7 @@
 "Touch" = "Toque";
 "Touch and Hold Right Click" = "Tocar e segurar para clicar com o botão direito";
 "Touch and Hold to Secondary Click" = "Toque e segure para clique secundário";
+"Touch Screen" = "Tela sensível ao toque";
 "Turn Off Virtual Mac Guest Tools?" = "Desativar as ferramentas de convidado do Virtual Mac?";
 "Two Finger Tap Right Click" = "Tocar com dois dedos para clicar com o botão direito";
 "Two Finger Tap to Secondary Click" = "Toque com dois dedos para clique secundário";

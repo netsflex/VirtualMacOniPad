@@ -158,6 +158,8 @@
 "Name" = "Имя";
 "Name Already Used" = "Имя уже используется";
 "NAT: Share %@" = "NAT: общий доступ через %@";
+"Native Touch" = "Нативное касание";
+"Native Touch (Experimental)" = "Нативное касание (экспериментально)";
 "Network" = "Сеть";
 "Network Attachment" = "Сетевое подключение";
 "Network Bridge (%@)" = "Сетевой мост (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Более десяти лет люди мечтали запустить macOS на iPad. Сегодня эта мечта сбывается. Чтобы начать, создайте виртуальный Mac.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Более десяти лет люди мечтали брать macOS с собой куда угодно. Сегодня эта мечта становится реальностью. Чтобы начать, создайте виртуальный Mac.";
 "Pixels Per Inch" = "Пикселей на дюйм";
+"Pointer" = "Указатель";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "«Указатель» преобразует касания в события указателя и прокрутки и работает с любой гостевой системой. «Нативное касание» даёт macOS сенсорный экран с собственными жестами. Требуется macOS 27.3 или новее; Stage Manager не поддерживается.";
 "Pointing Device" = "Устройство указания";
 "Portrait iPad" = "iPad в портретной ориентации";
 "Portrait iPhone" = "iPhone в портретной ориентации";
@@ -273,6 +277,7 @@
 "Touch" = "Касание";
 "Touch and Hold Right Click" = "Удержание для правого клика";
 "Touch and Hold to Secondary Click" = "Нажмите и удерживайте для вторичного щелчка";
+"Touch Screen" = "Сенсорный экран";
 "Turn Off Virtual Mac Guest Tools?" = "Выключить гостевые инструменты Virtual Mac?";
 "Two Finger Tap Right Click" = "Касание двумя пальцами для правого клика";
 "Two Finger Tap to Secondary Click" = "Касание двумя пальцами для вторичного щелчка";

@@ -158,6 +158,8 @@
 "Name" = "Назва";
 "Name Already Used" = "Имя уже используется";
 "NAT: Share %@" = "NAT: спільний доступ через %@";
+"Native Touch" = "Нативний дотик";
+"Native Touch (Experimental)" = "Нативний дотик (експериментально)";
 "Network" = "Мережа";
 "Network Attachment" = "Сетевое підключення";
 "Network Bridge (%@)" = "Сетевой мост (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Понад десять років люди мріяли запустити macOS на iPad. Сьогодні ця мрія збувається. Щоб почати, створіть віртуальний Mac.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Понад десять років люди мріяли брати macOS із собою будь-куди. Сьогодні ця мрія стає реальністю. Щоб почати, створіть віртуальний Mac.";
 "Pixels Per Inch" = "Пикселей на дюйм";
+"Pointer" = "Вказівник";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "«Вказівник» перетворює дотики на події вказівника та прокручування й працює з будь-якою гостьовою системою. «Нативний дотик» надає macOS сенсорний екран із власними жестами. Потрібна macOS 27.3 або новіша; Stage Manager не підтримується.";
 "Pointing Device" = "Пристрій указания";
 "Portrait iPad" = "iPad у портретній орієнтації";
 "Portrait iPhone" = "iPhone у портретній орієнтації";
@@ -273,6 +277,7 @@
 "Touch" = "Дотик";
 "Touch and Hold Right Click" = "Утримання для правого клацання";
 "Touch and Hold to Secondary Click" = "Торкніться й утримуйте для вторинного клацання";
+"Touch Screen" = "Сенсорний екран";
 "Turn Off Virtual Mac Guest Tools?" = "Вимкнути гостьові інструменти Virtual Mac?";
 "Two Finger Tap Right Click" = "Дотик двома пальцями для правого клацання";
 "Two Finger Tap to Secondary Click" = "Торкніться двома пальцями для додаткового клацання";

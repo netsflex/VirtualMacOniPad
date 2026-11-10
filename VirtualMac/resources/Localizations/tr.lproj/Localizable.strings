@@ -158,6 +158,8 @@
 "Name" = "Ad";
 "Name Already Used" = "Ad Zaten Kullanılıyor";
 "NAT: Share %@" = "NAT: %@ Paylaş";
+"Native Touch" = "Yerel Dokunma";
+"Native Touch (Experimental)" = "Yerel Dokunma (deneysel)";
 "Network" = "Ağ";
 "Network Attachment" = "Ağ Bağlantısı";
 "Network Bridge (%@)" = "Ağ Köprüsü (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "İnsanlar on yılı aşkın süredir iPad’de macOS çalıştırmanın hayalini kuruyor. Bugün bu hayal gerçek oluyor. Başlamak için bir sanal Mac oluşturun.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "İnsanlar on yılı aşkın süredir macOS’i gittikleri her yere götürmenin hayalini kuruyor. Bugün bu hayal gerçeğe dönüşüyor. Başlamak için sanal bir Mac oluşturun.";
 "Pixels Per Inch" = "İnç Başına Piksel";
+"Pointer" = "İmleç";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "“İmleç”, dokunuşları imleç ve kaydırma olaylarına dönüştürür ve tüm konuk sistemlerle çalışır. “Yerel Dokunma”, macOS'e kendi hareketleri olan bir dokunmatik ekran sağlar. macOS 27.3 veya sonrası gerekir ve Stage Manager desteklenmez.";
 "Pointing Device" = "İşaretleme Aygıtı";
 "Portrait iPad" = "Dikey iPad";
 "Portrait iPhone" = "Dikey iPhone";
@@ -273,6 +277,7 @@
 "Touch" = "Dokunma";
 "Touch and Hold Right Click" = "Sağ Tıklamak için Dokunup Tut";
 "Touch and Hold to Secondary Click" = "İkincil Tıklama için Dokunup Basılı Tutun";
+"Touch Screen" = "Dokunmatik Ekran";
 "Turn Off Virtual Mac Guest Tools?" = "Virtual Mac Konuk Araçları Kapatılsın mı?";
 "Two Finger Tap Right Click" = "Sağ Tıklamak için İki Parmakla Dokun";
 "Two Finger Tap to Secondary Click" = "İkincil Tıklama için İki Parmakla Dokunma";

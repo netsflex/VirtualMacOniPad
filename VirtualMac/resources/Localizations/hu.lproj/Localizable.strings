@@ -158,6 +158,8 @@
 "Name" = "Név";
 "Name Already Used" = "A név már használatban van";
 "NAT: Share %@" = "NAT: %@ megosztása";
+"Native Touch" = "Natív érintés";
+"Native Touch (Experimental)" = "Natív érintés (kísérleti)";
 "Network" = "Hálózat";
 "Network Attachment" = "Hálózati csatolmány";
 "Network Bridge (%@)" = "Hálózati híd (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Az emberek több mint egy évtizede álmodnak arról, hogy macOS-t futtassanak iPaden. Ma ez az álom valóra válik. Első lépésként hozzon létre egy virtuális Macet.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Az emberek több mint egy évtizede álmodnak arról, hogy bárhová magukkal vihessék a macOS-t. Ma ez az álom valóra válik. Első lépésként hozzon létre egy virtuális Macet.";
 "Pixels Per Inch" = "Képpont hüvelykenként";
+"Pointer" = "Mutató";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "A „Mutató” az érintéseket mutató- és görgetési eseményekké alakítja, és minden vendégrendszerrel működik. A „Natív érintés” saját kézmozdulatokkal rendelkező érintőképernyőt ad a macOS-nek. macOS 27.3 vagy újabb szükséges hozzá, és nem támogatja a Stage Managert.";
 "Pointing Device" = "Mutatóeszköz";
 "Portrait iPad" = "iPad álló helyzetben";
 "Portrait iPhone" = "iPhone álló helyzetben";
@@ -273,6 +277,7 @@
 "Touch" = "Érintés";
 "Touch and Hold Right Click" = "Hosszan érintés jobb kattintásként";
 "Touch and Hold to Secondary Click" = "Érintse meg és tartsa lenyomva a másodlagos kattintáshoz";
+"Touch Screen" = "Érintőképernyő";
 "Turn Off Virtual Mac Guest Tools?" = "Kikapcsolja a Virtual Mac vendégeszközeit?";
 "Two Finger Tap Right Click" = "Kétujjas koppintás jobb kattintásként";
 "Two Finger Tap to Secondary Click" = "Kétujjas érintés a másodlagos kattintáshoz";

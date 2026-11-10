@@ -158,6 +158,8 @@
 "Name" = "שם";
 "Name Already Used" = "השם כבר בשימוש";
 "NAT: Share %@" = "NAT: שיתוף %@";
+"Native Touch" = "מגע מקורי";
+"Native Touch (Experimental)" = "מגע מקורי (ניסיוני)";
 "Network" = "רשת";
 "Network Attachment" = "חיבור רשת";
 "Network Bridge (%@)" = "גשר רשת (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "כבר יותר מעשור אנשים חולמים להפעיל את macOS ב-iPad. היום החלום הזה מתגשם. כדי להתחיל, יש ליצור Mac וירטואלי.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "כבר יותר מעשור אנשים חולמים לקחת את macOS איתם לכל מקום. היום החלום הזה מתגשם. כדי להתחיל, צרו Mac וירטואלי.";
 "Pixels Per Inch" = "פיקסלים לאינץ׳";
+"Pointer" = "סמן";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "״סמן״ ממיר נגיעות לאירועי סמן וגלילה ופועל עם כל מערכת אורחת. ״מגע מקורי״ מעניק ל-macOS מסך מגע עם המחוות שלו. נדרש macOS 27.3 ואילך, ואין תמיכה ב-Stage Manager.";
 "Pointing Device" = "התקן הצבעה";
 "Portrait iPad" = "iPad לאורך";
 "Portrait iPhone" = "iPhone לאורך";
@@ -273,6 +277,7 @@
 "Touch" = "מגע";
 "Touch and Hold Right Click" = "לחיצה ממושכת כלחיצה ימנית";
 "Touch and Hold to Secondary Click" = "גע והחזק ללחיצה משנית";
+"Touch Screen" = "מסך מגע";
 "Turn Off Virtual Mac Guest Tools?" = "לכבות את כלי האורח של Virtual Mac?";
 "Two Finger Tap Right Click" = "הקשה בשתי אצבעות כלחיצה ימנית";
 "Two Finger Tap to Secondary Click" = "הקשה בשתי אצבעות ללחיצה משנית";

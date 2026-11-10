@@ -158,6 +158,8 @@
 "Name" = "Nimi";
 "Name Already Used" = "Nimi on jo käytössä";
 "NAT: Share %@" = "NAT: Jaa %@";
+"Native Touch" = "Natiivi kosketus";
+"Native Touch (Experimental)" = "Natiivi kosketus (kokeellinen)";
 "Network" = "Verkko";
 "Network Attachment" = "Verkkoliitäntä";
 "Network Bridge (%@)" = "Verkkosilta (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Ihmiset ovat haaveilleet macOS:n käyttämisestä iPadilla yli vuosikymmenen ajan. Tänään tuo unelma toteutuu. Aloita luomalla virtuaalinen Mac.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Ihmiset ovat jo yli vuosikymmenen haaveilleet macOS:n kuljettamisesta mukana kaikkialle. Tänään unelmasta tulee totta. Aloita luomalla virtuaalinen Mac.";
 "Pixels Per Inch" = "Pikseliä tuumalla";
+"Pointer" = "Osoitin";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "”Osoitin” muuntaa kosketukset osoitin- ja vieritystapahtumiksi ja toimii kaikkien vieraskäyttöjärjestelmien kanssa. ”Natiivi kosketus” antaa macOS:lle kosketusnäytön omine eleineen. Vaatii macOS 27.3:n tai uudemman eikä tue Stage Manageria.";
 "Pointing Device" = "Osoitinlaite";
 "Portrait iPad" = "iPad pystyasennossa";
 "Portrait iPhone" = "iPhone pystyasennossa";
@@ -273,6 +277,7 @@
 "Touch" = "Kosketus";
 "Touch and Hold Right Click" = "Pidä painettuna oikeaa klikkausta varten";
 "Touch and Hold to Secondary Click" = "Kosketa pitkään toissijaista napsautusta varten";
+"Touch Screen" = "Kosketusnäyttö";
 "Turn Off Virtual Mac Guest Tools?" = "Poistetaanko Virtual Macin vierastyökalut käytöstä?";
 "Two Finger Tap Right Click" = "Napauta kahdella sormella oikeaa klikkausta varten";
 "Two Finger Tap to Secondary Click" = "Kahden sormen napautus toissijaista napsautusta varten";

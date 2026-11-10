@@ -158,6 +158,8 @@
 "Name" = "Namn";
 "Name Already Used" = "Namnet används redan";
 "NAT: Share %@" = "NAT: Dela %@";
+"Native Touch" = "Inbyggd beröring";
+"Native Touch (Experimental)" = "Inbyggd beröring (experimentell)";
 "Network" = "Nätverk";
 "Network Attachment" = "Nätverksanslutning";
 "Network Bridge (%@)" = "Nätverksbrygga (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "I mer än ett decennium har människor drömt om att köra macOS på iPad. I dag blir drömmen verklighet. Skapa en virtuell Mac för att komma igång.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "I mer än ett decennium har människor drömt om att ta med sig macOS vart de än går. I dag blir den drömmen verklighet. Skapa en virtuell Mac för att komma igång.";
 "Pixels Per Inch" = "Pixlar per tum";
+"Pointer" = "Pekare";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "”Pekare” omvandlar beröringar till pekar- och rullningshändelser och fungerar med alla gästsystem. ”Inbyggd beröring” ger macOS en pekskärm med egna gester. Kräver macOS 27.3 eller senare och har inte stöd för Stage Manager.";
 "Pointing Device" = "Pekdon";
 "Portrait iPad" = "iPad stående";
 "Portrait iPhone" = "iPhone stående";
@@ -273,6 +277,7 @@
 "Touch" = "Beröring";
 "Touch and Hold Right Click" = "Tryck och håll för högerklick";
 "Touch and Hold to Secondary Click" = "Peka och håll ned för sekundärt klick";
+"Touch Screen" = "Pekskärm";
 "Turn Off Virtual Mac Guest Tools?" = "Stäng av Virtual Mac-gästverktyg?";
 "Two Finger Tap Right Click" = "Tryck med två fingrar för högerklick";
 "Two Finger Tap to Secondary Click" = "Tryck med två fingrar för sekundärt klick";

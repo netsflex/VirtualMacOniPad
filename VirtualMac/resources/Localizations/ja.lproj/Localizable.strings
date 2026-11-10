@@ -158,6 +158,8 @@
 "Name" = "名前";
 "Name Already Used" = "その名前は使用されています";
 "NAT: Share %@" = "NAT：%@を共有";
+"Native Touch" = "ネイティブタッチ";
+"Native Touch (Experimental)" = "ネイティブタッチ（実験的）";
 "Network" = "ネットワーク";
 "Network Attachment" = "ネットワーク接続";
 "Network Bridge (%@)" = "ネットワークブリッジ（%@）";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "10年以上にわたり、人々はiPadでmacOSを動かすことを夢見てきました。今日、その夢が実現します。仮想Macを作成して始めましょう。";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "10年以上もの間、macOSをどこへでも持ち歩くことが夢見られてきました。今日、その夢が現実になります。まずは仮想Macを作成しましょう。";
 "Pixels Per Inch" = "1インチあたりのピクセル数";
+"Pointer" = "ポインタ";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "「ポインタ」はタッチをポインタとスクロールのイベントに変換し、すべてのゲストで動作します。「ネイティブタッチ」は macOS に独自のジェスチャを持つタッチスクリーンを提供します。macOS 27.3 以降が必要で、ステージマネージャには対応していません。";
 "Pointing Device" = "ポインティングデバイス";
 "Portrait iPad" = "iPad縦向き";
 "Portrait iPhone" = "iPhone縦向き";
@@ -273,6 +277,7 @@
 "Touch" = "タッチ";
 "Touch and Hold Right Click" = "長押しで右クリック";
 "Touch and Hold to Secondary Click" = "タッチして押さえたままにして副ボタンのクリック";
+"Touch Screen" = "タッチスクリーン";
 "Turn Off Virtual Mac Guest Tools?" = "Virtual Macゲストツールをオフにしますか？";
 "Two Finger Tap Right Click" = "2本指タップで右クリック";
 "Two Finger Tap to Secondary Click" = "2本指でタップして副ボタンのクリック";

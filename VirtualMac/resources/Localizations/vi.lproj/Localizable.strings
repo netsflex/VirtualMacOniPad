@@ -158,6 +158,8 @@
 "Name" = "Tên";
 "Name Already Used" = "Tên đã được sử dụng";
 "NAT: Share %@" = "NAT: Chia sẻ %@";
+"Native Touch" = "Cảm ứng gốc";
+"Native Touch (Experimental)" = "Cảm ứng gốc (thử nghiệm)";
 "Network" = "Mạng";
 "Network Attachment" = "Kết nối mạng";
 "Network Bridge (%@)" = "Cầu nối mạng (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Trong hơn một thập kỷ, mọi người đã mơ ước chạy macOS trên iPad. Hôm nay, giấc mơ đó đã thành hiện thực. Hãy tạo một Máy Mac ảo để bắt đầu.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Trong hơn một thập kỷ, mọi người đã mơ ước có thể mang macOS theo mình đến bất cứ đâu. Hôm nay, giấc mơ đó trở thành hiện thực. Hãy tạo một máy Mac ảo để bắt đầu.";
 "Pixels Per Inch" = "Pixel trên mỗi inch";
+"Pointer" = "Con trỏ";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "“Con trỏ” chuyển thao tác chạm thành sự kiện con trỏ và cuộn, hoạt động với mọi hệ thống khách. “Cảm ứng gốc” cung cấp cho macOS màn hình cảm ứng với cử chỉ riêng. Yêu cầu macOS 27.3 trở lên và không hỗ trợ Stage Manager.";
 "Pointing Device" = "Thiết bị trỏ";
 "Portrait iPad" = "iPad dọc";
 "Portrait iPhone" = "iPhone dọc";
@@ -273,6 +277,7 @@
 "Touch" = "Cảm ứng";
 "Touch and Hold Right Click" = "Chạm và giữ để nhấp chuột phải";
 "Touch and Hold to Secondary Click" = "Chạm và giữ cho lần nhấp phụ";
+"Touch Screen" = "Màn hình cảm ứng";
 "Turn Off Virtual Mac Guest Tools?" = "Tắt công cụ máy khách Virtual Mac?";
 "Two Finger Tap Right Click" = "Chạm hai ngón để nhấp chuột phải";
 "Two Finger Tap to Secondary Click" = "Nhấn bằng hai ngón tay để nhấp chuột phụ";

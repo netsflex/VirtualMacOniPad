@@ -158,6 +158,8 @@
 "Name" = "名称";
 "Name Already Used" = "名称已被使用";
 "NAT: Share %@" = "NAT：共享%@";
+"Native Touch" = "原生触摸";
+"Native Touch (Experimental)" = "原生触摸（实验性）";
 "Network" = "网络";
 "Network Attachment" = "网络连接";
 "Network Bridge (%@)" = "网络桥接（%@）";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "十余年来，人们一直梦想着在iPad上运行macOS。今⁠天，这个梦想终于照进现实。创建虚拟Mac以开始。";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "十余年来，人们一直梦想着随时随地使用macOS。今天，这个梦想终于照进现实。创建虚拟Mac以开始。";
 "Pixels Per Inch" = "每英寸像素数";
+"Pointer" = "映射为指针";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "“映射为指针”把触摸转换成指针和滚动事件，适用于所有客户机系统。“原生触摸”为 macOS 提供真正的触摸屏和它自己的手势，需要 macOS 27.3 或更高版本，不支持台前调度。";
 "Pointing Device" = "指针设备";
 "Portrait iPad" = "iPad竖向";
 "Portrait iPhone" = "iPhone竖向";
@@ -273,6 +277,7 @@
 "Touch" = "触控";
 "Touch and Hold Right Click" = "轻触并按住以右键单击";
 "Touch and Hold to Secondary Click" = "触摸并按住以辅助点按";
+"Touch Screen" = "触摸屏";
 "Turn Off Virtual Mac Guest Tools?" = "关闭虚拟Mac客体工具？";
 "Two Finger Tap Right Click" = "双指轻触以右键单击";
 "Two Finger Tap to Secondary Click" = "两指轻点以辅助点按";
@@ -319,8 +324,3 @@
 "You can assign between %llu and %llu processor cores to this Virtual Mac, with %lu processor cores as the recommendation.\n\nMaxing out processor core assignment does not guarantee improved performance in Virtual Mac, as iPadOS also needs processor power to coordinate underlying tasks." = "你可以为此虚拟Mac分配%llu至%llu个处理器核心，建议分配%lu个。\n\n将处理器核心数设为上限并不一定能提升虚拟Mac的性能，因为iPadOS也需要处理器资源来处理系统任务。";
 "Your changes to this Virtual Mac will not be saved." = "你对此虚拟Mac所做的更改不会被保存。";
 "“%@” and all files stored in it will be permanently deleted." = "“%@”及其中存储的所有文件将被永久删除。";
-"Touch Screen" = "触摸屏";
-"Pointer" = "映射为指针";
-"Native Touch" = "原生触摸";
-"Native Touch (Experimental)" = "原生触摸（实验性）";
-"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "“映射为指针”把触摸转换成指针和滚动事件，适用于所有客户机系统。“原生触摸”为 macOS 提供真正的触摸屏和它自己的手势，需要 macOS 27.3 或更高版本，不支持台前调度。";

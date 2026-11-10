@@ -158,6 +158,8 @@
 "Name" = "Naam";
 "Name Already Used" = "Naam al in gebruik";
 "NAT: Share %@" = "NAT: deel %@";
+"Native Touch" = "Systeemeigen aanraking";
+"Native Touch (Experimental)" = "Systeemeigen aanraking (experimenteel)";
 "Network" = "Netwerk";
 "Network Attachment" = "Netwerkverbinding";
 "Network Bridge (%@)" = "Netwerkbrug (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Mensen dromen er al meer dan tien jaar van om macOS op de iPad te gebruiken. Vandaag wordt die droom werkelijkheid. Maak een virtuele Mac aan om aan de slag te gaan.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Al meer dan tien jaar dromen mensen ervan macOS overal mee naartoe te nemen. Vandaag wordt die droom werkelijkheid. Maak een virtuele Mac aan om te beginnen.";
 "Pixels Per Inch" = "Pixels per inch";
+"Pointer" = "Aanwijzer";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "'Aanwijzer' zet aanrakingen om in aanwijzer- en scrollgebeurtenissen en werkt met elk gastsysteem. 'Systeemeigen aanraking' geeft macOS een touchscreen met eigen gebaren. Vereist macOS 27.3 of nieuwer en ondersteunt Stage Manager niet.";
 "Pointing Device" = "Aanwijsapparaat";
 "Portrait iPad" = "iPad staand";
 "Portrait iPhone" = "iPhone staand";
@@ -273,6 +277,7 @@
 "Touch" = "Aanraking";
 "Touch and Hold Right Click" = "Aanraken en vasthouden voor rechtsklikken";
 "Touch and Hold to Secondary Click" = "Aanraken en vasthouden voor secundaire klik";
+"Touch Screen" = "Touchscreen";
 "Turn Off Virtual Mac Guest Tools?" = "Virtual Mac-gasttools uitschakelen?";
 "Two Finger Tap Right Click" = "Tik met twee vingers voor rechtsklikken";
 "Two Finger Tap to Secondary Click" = "Tik met twee vingers voor secundaire klik";

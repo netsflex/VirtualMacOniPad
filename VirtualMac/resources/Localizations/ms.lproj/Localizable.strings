@@ -158,6 +158,8 @@
 "Name" = "Nama";
 "Name Already Used" = "Nama Telah Digunakan";
 "NAT: Share %@" = "NAT: Bagikan %@";
+"Native Touch" = "Sentuhan Asli";
+"Native Touch (Experimental)" = "Sentuhan Asli (Eksperimen)";
 "Network" = "Rangkaian";
 "Network Attachment" = "Lampiran Rangkaian";
 "Network Bridge (%@)" = "Jambatan Rangkaian (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Selama lebih sedekad, orang ramai mengimpikan macOS dijalankan pada iPad. Hari ini, impian itu menjadi kenyataan. Cipta Mac maya untuk bermula.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Selama lebih sedekad, orang ramai mengimpikan untuk membawa macOS ke mana sahaja mereka pergi. Hari ini, impian itu menjadi kenyataan. Cipta Mac maya untuk bermula.";
 "Pixels Per Inch" = "Piksel Per Inci";
+"Pointer" = "Penuding";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "“Penuding” menukar sentuhan kepada peristiwa penuding dan tatal serta berfungsi dengan semua sistem tetamu. “Sentuhan Asli” memberikan macOS skrin sentuh dengan gerak isyaratnya sendiri. Memerlukan macOS 27.3 atau lebih baharu dan tidak menyokong Stage Manager.";
 "Pointing Device" = "Peranti Penunjuk";
 "Portrait iPad" = "iPad Potret";
 "Portrait iPhone" = "iPhone Potret";
@@ -273,6 +277,7 @@
 "Touch" = "Sentuhan";
 "Touch and Hold Right Click" = "Sentuh dan Tahan untuk Klik Kanan";
 "Touch and Hold to Secondary Click" = "Sentuh dan Tahan untuk Klik Sekunder";
+"Touch Screen" = "Skrin Sentuh";
 "Turn Off Virtual Mac Guest Tools?" = "Matikan Alat Tetamu Virtual Mac?";
 "Two Finger Tap Right Click" = "Ketik Dua Jari untuk Klik Kanan";
 "Two Finger Tap to Secondary Click" = "Ketik Dua Jari untuk Klik Sekunder";

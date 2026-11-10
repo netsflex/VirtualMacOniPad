@@ -158,6 +158,8 @@
 "Name" = "Nume";
 "Name Already Used" = "Numele este deja folosit";
 "NAT: Share %@" = "NAT: condividi %@";
+"Native Touch" = "Atingere nativă";
+"Native Touch (Experimental)" = "Atingere nativă (experimental)";
 "Network" = "Rețea";
 "Network Attachment" = "Conexiune de rețea";
 "Network Bridge (%@)" = "Bridge di rete (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "De mai bine de un deceniu, oamenii visează să ruleze macOS pe iPad. Astăzi, acel vis devine realitate. Creați un Mac virtual pentru a începe.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "De mai bine de un deceniu, oamenii visează să ia macOS cu ei oriunde merg. Astăzi, acel vis devine realitate. Creați un Mac virtual pentru a începe.";
 "Pixels Per Inch" = "Pixeli per inch";
+"Pointer" = "Indicator";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "„Indicator” transformă atingerile în evenimente de indicator și derulare și funcționează cu orice sistem invitat. „Atingere nativă” oferă macOS un ecran tactil cu propriile gesturi. Necesită macOS 27.3 sau o versiune ulterioară și nu acceptă Stage Manager.";
 "Pointing Device" = "Dispositivo di puntamento";
 "Portrait iPad" = "iPad portret";
 "Portrait iPhone" = "iPhone portret";
@@ -273,6 +277,7 @@
 "Touch" = "Atingere";
 "Touch and Hold Right Click" = "Ține apăsat pentru clic dreapta";
 "Touch and Hold to Secondary Click" = "Atingeți și mențineți apăsat pentru clic secundar";
+"Touch Screen" = "Ecran tactil";
 "Turn Off Virtual Mac Guest Tools?" = "Dezactivați instrumentele pentru oaspeți Virtual Mac?";
 "Two Finger Tap Right Click" = "Atinge cu două degete pentru clic dreapta";
 "Two Finger Tap to Secondary Click" = "Atingeți cu două degete pentru clic secundar";

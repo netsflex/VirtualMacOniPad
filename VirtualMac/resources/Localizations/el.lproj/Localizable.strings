@@ -158,6 +158,8 @@
 "Name" = "Όνομα";
 "Name Already Used" = "Το όνομα χρησιμοποιείται ήδη";
 "NAT: Share %@" = "NAT: Κοινή χρήση %@";
+"Native Touch" = "Εγγενής αφή";
+"Native Touch (Experimental)" = "Εγγενής αφή (πειραματικό)";
 "Network" = "Δίκτυο";
 "Network Attachment" = "Σύνδεση δικτύου";
 "Network Bridge (%@)" = "Γέφυρα δικτύου (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Για περισσότερο από μια δεκαετία, οι άνθρωποι ονειρεύονται να εκτελούν το macOS σε iPad. Σήμερα, αυτό το όνειρο γίνεται πραγματικότητα. Δημιουργήστε ένα εικονικό Mac για να ξεκινήσετε.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Για περισσότερο από μια δεκαετία, οι άνθρωποι ονειρεύονται να παίρνουν το macOS μαζί τους όπου κι αν πηγαίνουν. Σήμερα, αυτό το όνειρο γίνεται πραγματικότητα. Δημιουργήστε ένα εικονικό Mac για να ξεκινήσετε.";
 "Pixels Per Inch" = "Pixel ανά ίντσα";
+"Pointer" = "Δείκτης";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "Ο «Δείκτης» μετατρέπει τα αγγίγματα σε συμβάντα δείκτη και κύλισης και λειτουργεί με κάθε φιλοξενούμενο σύστημα. Η «Εγγενής αφή» δίνει στο macOS οθόνη αφής με τις δικές του χειρονομίες. Απαιτεί macOS 27.3 ή νεότερο και δεν υποστηρίζει το Stage Manager.";
 "Pointing Device" = "Συσκευή κατάδειξης";
 "Portrait iPad" = "iPad σε κατακόρυφο προσανατολισμό";
 "Portrait iPhone" = "iPhone σε κατακόρυφο προσανατολισμό";
@@ -273,6 +277,7 @@
 "Touch" = "Αφή";
 "Touch and Hold Right Click" = "Παρατεταμένο άγγιγμα για δεξί κλικ";
 "Touch and Hold to Secondary Click" = "Αγγίξτε παρατεταμένα για δευτερεύον κλικ";
+"Touch Screen" = "Οθόνη αφής";
 "Turn Off Virtual Mac Guest Tools?" = "Απενεργοποίηση εργαλείων επισκέπτη Virtual Mac;";
 "Two Finger Tap Right Click" = "Άγγιγμα με δύο δάχτυλα για δεξί κλικ";
 "Two Finger Tap to Secondary Click" = "Πατήστε με δύο δάχτυλα για δευτερεύον κλικ";

@@ -158,6 +158,8 @@
 "Name" = "Name";
 "Name Already Used" = "Name Already Used";
 "NAT: Share %@" = "NAT: Share %@";
+"Native Touch" = "Native Touch";
+"Native Touch (Experimental)" = "Native Touch (Experimental)";
 "Network" = "Network";
 "Network Attachment" = "Network Attachment";
 "Network Bridge (%@)" = "Network Bridge (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started.";
 "Pixels Per Inch" = "Pixels Per Inch";
+"Pointer" = "Pointer";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager.";
 "Pointing Device" = "Pointing Device";
 "Portrait iPad" = "Portrait iPad";
 "Portrait iPhone" = "Portrait iPhone";
@@ -273,6 +277,7 @@
 "Touch" = "Touch";
 "Touch and Hold Right Click" = "Touch and Hold Right Click";
 "Touch and Hold to Secondary Click" = "Touch and Hold to Secondary Click";
+"Touch Screen" = "Touch Screen";
 "Turn Off Virtual Mac Guest Tools?" = "Turn Off Virtual Mac Guest Tools?";
 "Two Finger Tap Right Click" = "Two Finger Tap Right Click";
 "Two Finger Tap to Secondary Click" = "Two Finger Tap to Secondary Click";
@@ -319,8 +324,3 @@
 "You can assign between %llu and %llu processor cores to this Virtual Mac, with %lu processor cores as the recommendation.\n\nMaxing out processor core assignment does not guarantee improved performance in Virtual Mac, as iPadOS also needs processor power to coordinate underlying tasks." = "You can assign between %llu and %llu processor cores to this Virtual Mac, with %lu processor cores as the recommendation.\n\nMaxing out processor core assignment does not guarantee improved performance in Virtual Mac, as iPadOS also needs processor power to coordinate underlying tasks.";
 "Your changes to this Virtual Mac will not be saved." = "Your changes to this Virtual Mac will not be saved.";
 "“%@” and all files stored in it will be permanently deleted." = "“%@” and all files stored in it will be permanently deleted.";
-"Touch Screen" = "Touch Screen";
-"Pointer" = "Pointer";
-"Native Touch" = "Native Touch";
-"Native Touch (Experimental)" = "Native Touch (Experimental)";
-"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager.";

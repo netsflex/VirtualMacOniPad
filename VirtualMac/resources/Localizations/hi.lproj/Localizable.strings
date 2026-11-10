@@ -158,6 +158,8 @@
 "Name" = "नाम";
 "Name Already Used" = "नाम पहले से उपयोग में है";
 "NAT: Share %@" = "NAT: %@ शेयर करें";
+"Native Touch" = "नेटिव टच";
+"Native Touch (Experimental)" = "नेटिव टच (प्रायोगिक)";
 "Network" = "नेटवर्क";
 "Network Attachment" = "नेटवर्क अटैचमेंट";
 "Network Bridge (%@)" = "नेटवर्क ब्रिज (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "लोग एक दशक से भी अधिक समय से iPad पर macOS चलाने का सपना देखते आए हैं। आज वह सपना सच हो रहा है। शुरू करने के लिए वर्चुअल Mac बनाएँ।";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "एक दशक से भी अधिक समय से लोग macOS को हर जगह अपने साथ ले जाने का सपना देखते आए हैं। आज वह सपना सच हो रहा है। शुरू करने के लिए एक वर्चुअल Mac बनाएँ।";
 "Pixels Per Inch" = "प्रति इंच पिक्सेल";
+"Pointer" = "पॉइंटर";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "“पॉइंटर” टच को पॉइंटर और स्क्रॉल इवेंट में बदलता है और हर गेस्ट सिस्टम के साथ काम करता है। “नेटिव टच” macOS को उसके अपने जेस्चर वाली टच स्क्रीन देता है। इसके लिए macOS 27.3 या बाद का संस्करण चाहिए और यह Stage Manager को सपोर्ट नहीं करता।";
 "Pointing Device" = "पॉइंटिंग डिवाइस";
 "Portrait iPad" = "iPad पोर्ट्रेट";
 "Portrait iPhone" = "iPhone पोर्ट्रेट";
@@ -273,6 +277,7 @@
 "Touch" = "टच";
 "Touch and Hold Right Click" = "दायाँ क्लिक करने के लिए दबाकर रखें";
 "Touch and Hold to Secondary Click" = "सेकेंडरी क्लिक के लिए स्पर्श करके रखें";
+"Touch Screen" = "टच स्क्रीन";
 "Turn Off Virtual Mac Guest Tools?" = "Virtual Mac गेस्ट टूल्स बंद करें?";
 "Two Finger Tap Right Click" = "दायाँ क्लिक करने के लिए दो उंगलियों से टैप करें";
 "Two Finger Tap to Secondary Click" = "सेकेंडरी क्लिक के लिए टू-फिंगर टैप";

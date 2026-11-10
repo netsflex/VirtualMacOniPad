@@ -158,6 +158,8 @@
 "Name" = "Název";
 "Name Already Used" = "Název se už používá";
 "NAT: Share %@" = "NAT: Sdílet %@";
+"Native Touch" = "Nativní dotyk";
+"Native Touch (Experimental)" = "Nativní dotyk (experimentální)";
 "Network" = "Síť";
 "Network Attachment" = "Síťové připojení";
 "Network Bridge (%@)" = "Síťový most (%@)";
@@ -181,6 +183,8 @@
 "People have dreamed of running macOS on iPad for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Lidé už více než deset let sní o spuštění macOS na iPadu. Dnes se tento sen stává skutečností. Začněte vytvořením virtuálního Macu.";
 "People have dreamed of taking macOS wherever they go for more than a decade. Today, that dream comes true. Create a Virtual Mac to get started." = "Lidé už více než deset let sní o tom, že si vezmou macOS kamkoli s sebou. Dnes se tento sen stává skutečností. Začněte vytvořením virtuálního Macu.";
 "Pixels Per Inch" = "Pixelů na palec";
+"Pointer" = "Ukazatel";
+"Pointer turns touches into pointer and scroll events and works with every guest. Native Touch gives macOS a touch screen with its own gestures. It needs macOS 27.3 or later and doesn't support Stage Manager." = "„Ukazatel“ převádí dotyky na události ukazatele a posouvání a funguje se všemi hostovanými systémy. „Nativní dotyk“ poskytne macOS dotykovou obrazovku s vlastními gesty. Vyžaduje macOS 27.3 nebo novější a nepodporuje Stage Manager.";
 "Pointing Device" = "Polohovací zařízení";
 "Portrait iPad" = "iPad na výšku";
 "Portrait iPhone" = "iPhone na výšku";
@@ -273,6 +277,7 @@
 "Touch" = "Dotyk";
 "Touch and Hold Right Click" = "Podržení jako pravé kliknutí";
 "Touch and Hold to Secondary Click" = "Klepněte a podržte pro sekundární kliknutí";
+"Touch Screen" = "Dotyková obrazovka";
 "Turn Off Virtual Mac Guest Tools?" = "Vypnout nástroje hosta Virtual Mac?";
 "Two Finger Tap Right Click" = "Klepnutí dvěma prsty jako pravé kliknutí";
 "Two Finger Tap to Secondary Click" = "Klepnutí dvěma prsty pro sekundární kliknutí";
