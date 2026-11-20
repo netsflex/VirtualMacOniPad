@@ -1,99 +1,49 @@
 # Virtual Mac on iPad
 
-People have dreamed of running macOS on iPad for [more](https://www.macstories.net/stories/macpad-how-i-created-the-hybrid-mac-ipad-laptop-and-tablet-that-apple-wont-make/) [than](https://github.com/khanhduytran0/MacWSBootingGuide) [a](https://khronokernel.com/apple/silicon/2021/01/17/QEMU-AS.html) [decade](https://worthdoingbadly.com/macappsios/). Today, that dream comes true. With Virtual Mac, iPad finally breaks free from iPadOS, enabling pro apps like Xcode, Terminal, Final Cut Pro, Logic Pro, and Pixelmator Pro to run directly on device. Requires iPad Pro (M1, M2) or iPad Air (M1) running iPadOS 14 up to 16.3.1.
+Virtual Mac on iPad 在兼容的 iPad 上运行 macOS 虚拟机，支持硬件虚拟化和 Metal 图形加速。本项目基于 Virtual Mac on iPad（[nfzerox/VirtualMacOniPad](https://github.com/nfzerox/VirtualMacOniPad) 和 [liukaixiang817/VirtualMacOniPad](https://github.com/liukaixiang817/VirtualMacOniPad)） ，相比上游，本 fork 为 macOS 虚拟机添加了硬件加速编解码，加入了原生触摸板和触摸屏支持，并修复了一些bug。
 
-This personal fork adds **2.0.0beta1 (build 1001)** as a separate app alongside original 1.2.3. The beta combines macOS 27 graphics and shader components with the established macOS 13.2.1 CPU/VMM runtime. See the [release changes and tested limits](VirtualMac/docs/releases/2.0.0beta1.md) and [packaging and installation instructions](VirtualMac/docs/releases/virtualmac2-packaging.md). Keep original 1.2.3 installed for its shared installation and network helpers.
+**当前版本为 `2.2.0beta2`（`1005`）。** [发布说明](VirtualMac/docs/releases/2.2.0beta2-1005.md) · [下载](https://github.com/netsflex/VirtualMacOniPad/releases)
 
-![Screenshot of Virtual Mac on iPad](VirtualMac/screenshots/VirtualMac.png)
+![Virtual Mac on iPad 运行界面](VirtualMac/screenshots/VirtualMac.png)
 
-As seen on: [iGeneration](https://www.igen.fr/ipad/2026/08/virtual-mac-fait-tourner-macos-sur-certains-ipad-jailbreakes-157355), [ifun.de](https://www.ifun.de/open-source-projekt-bringt-macos-auf-das-ipad-285132/), [La Manzana Mordida](https://lamanzanamordida.net/noticias/instalar-macos-ipad-virtualmac/), [すまほん!!](https://smhn.info/202608-apple-ipad-virtual-mac-macos-jailbreak-hypervisor), [鵺間飛行 (video)](https://www.bilibili.com/video/BV1Nfue6PExJ/), [IT Home](https://www.ithome.com/0/985/545.htm), [ezone](https://ezone.hk/article/20104816/ipad%E7%B5%82%E6%96%BC%E5%8F%AF%E4%BB%A5%E8%B7%91macos-%E6%B0%91%E9%96%93%E7%A5%9E%E4%BA%BA%E9%87%8B%E5%87%BA%E9%96%8B%E6%BA%90%E5%B7%A5%E5%85%B7-%E6%94%AF%E6%8F%B4gpu%E5%8A%A0%E9%80%9F-%E5%AF%ABcode-%E5%8D%B3%E7%9D%87%E6%94%AF%E6%8F%B4%E6%A9%9F%E5%9E%8B%E8%88%87%E7%B3%BB%E7%B5%B1), [KOCPC](https://www.kocpc.com.tw/archives/664343), and [Bilibili (video)](https://www.bilibili.com/video/BV1PfuR69EoC/). Virtual Mac on iPad is a community project and is not affiliated with Dopamine, UTM, VirtualBuddy, or Apple. Contributions are welcome!
+## 运行环境
 
-## Installation
+- 宿主需要 rootless 越狱的 iPadOS 16.1 至 16.3.1，以及 ElleKit 或 libhooker。暂不支持 roothide 模式的越狱环境。
+- 本版已在 11 英寸 iPad Pro (2021) (`iPad13,5`)、iPadOS 16.3.1 和 Dopamine 环境下实测通过，并测试了多个版本的来宾系统，包括 macOS Sequoia 15.6.1、macOS 27.2 和 macOS 27.3 Developer Beta 1 等。
 
-1. Jailbreak a compatible iPad Pro (M1, M2) or iPad Air (M1). [View instructions for iPadOS 15 up to 16.3.1](https://ios.cfw.guide/installing-dopamine-trollstore/), or [instructions for iPadOS 14 up to 14.8.1](https://ios.cfw.guide/installing-taurine/). If jailbreak fails, switch to a different exploit in Dopamine or Taurine settings.
-2. Add the [https://nfzerox.github.io/cydia/](https://nfzerox.github.io/cydia/) repository in Sileo, then search and install Virtual Mac.
+## 安装与升级
 
-Ran into a problem? [Check the troubleshooting section](https://github.com/nfzerox/VirtualMacOniPad#what-if-i-encounter-crashes-bugs-or-other-issues).
+1. 从 [Releases](https://github.com/netsflex/VirtualMacOniPad/releases) 下载 `VirtualMac2_2.2.0beta2_1005_standalone.deb`，可用随附的 `SHA256SUMS` 校验。
+2. 正常关闭所有虚拟机并退出任何版本的 Virtual Mac。已安装原版软件包 `com.mac.virtual` 时，需要先卸载原版。虚拟机文件存放于 `/var/mobile/Media/VirtualMac`，卸载原版会保留该目录中的虚拟机文件。
+3. 在 iPad 上以 root 身份安装二进制文件，然后执行一次注销以加载键盘插件。
 
-## Frequently Asked Questions
+   ```bash
+   dpkg -i VirtualMac2_2.2.0beta2_1005_standalone.deb
+   ```
 
-### Which iPad and iPadOS versions does this require?
+遇到问题时，请附上 iPad 型号、iPadOS 、 macOS 版本、复现步骤，以及导出的调试日志。日志收集开关可在应用设置中开启。 [报告问题](https://github.com/netsflex/VirtualMacOniPad/issues)
 
-Virtual Mac on iPad requires an iPad Pro (M1, M2) or iPad Air (M1) running iPadOS 14 up to 16.3.1. iPad Pro models with 1 TB or 2 TB of storage have 16 GB of RAM and provide the best performance and experience.
+## 构建
 
-### Which versions of macOS does this support?
+在 Mac 上准备 Xcode（含对应版本的 macOS 和 iOS SDK）、Python 3 和 `ldid`。将下列两份上游包放在仓库根目录。它们是构建的输入文件，脚本会先核验 SHA-256，再提取所需组件并从本仓库编译安装二进制包。
 
-Virtual Mac on iPad supports macOS 12 Monterey up to macOS 26 Tahoe, with experimental support for macOS 27 Golden Gate. macOS 15 Sequoia is the recommended version to install. [You can download the latest compatible version of Xcode, Final Cut Pro Trial, Logic Pro Trial, and Pixelmator Pro Trial](https://nfzerox.github.io/virtual-mac/app/).
+| 上游包 | 用途 |
+| --- | --- |
+| [`VirtualMac_1.2.4.deb`](https://github.com/nfzerox/VirtualMacOniPad/releases/tag/1.2.4) | NAT 守护进程、依赖库和配置 | 
+| [`VirtualMac_2.0.0beta1_1001.deb`](https://github.com/liukaixiang817/VirtualMacOniPad/releases/tag/2.0.0beta1) | Apple 框架、GPU 运行时、着色器缓存和应用资源 | 
 
-Metal acceleration is available in all supported macOS versions. Final Cut Pro and OpenGL/OpenCL acceleration require macOS 14 Sonoma or later. Because signing into iCloud or Apple Account is not supported, choose Set Up Later when asked.
+在仓库根目录运行以下命令即可构建。 [构建脚本](VirtualMac/scripts/development/build-virtualmac2-release.sh)
 
-### Do I need a Magic Keyboard?
+```bash
+bash VirtualMac/scripts/development/build-virtualmac2-release.sh \
+  VirtualMac_1.2.4.deb VirtualMac_2.0.0beta1_1001.deb output \
+  --release-version 2.2.0beta2 --build-number 1005
+```
 
-Magic Keyboard is not required because you can also use the touchscreen and virtual keyboard:
-- Tap to click, secondary click by tapping with two fingers, and scroll with two fingers.
-- To access the virtual keyboard, tap the keyboard icon. If the virtual keyboard gets in the way, press and hold the bottom-right icon to switch to Floating mode.
-- If the HUD gets in the way, move it to a different corner or hide it from the More menu. To show it again, press and hold the Virtual Mac icon on the iPad Home Screen, then tap Show Virtual Mac Controls.
-- To automatically start up your virtual Mac, enable System Settings > Users & Groups > Automatically log in, and set System Settings > Lock Screen to Never. Then in Virtual Mac's in-app Settings, change Start on Launch from Show Library to the name of your virtual Mac. To show library again, press and hold the Virtual Mac icon on the iPad Home Screen, then tap Show Library.
-- If your Magic Keyboard doesn't have a hardware Escape key, press Command + Period (⌘ + .) instead. You can also map another key to Escape in Settings > General > Keyboard > Hardware Keyboard > Modifier Keys.
+`output/` 中将生成 `VirtualMac2_2.2.0beta2_1005_standalone.deb`、`SHA256SUMS` 和 `release-manifest.json`。
 
-### Is it possible to support newer versions of iPadOS?
+## 上游与许可
 
-Supporting iPadOS 16.4 or later presents additional challenges because [Hypervisor support was removed from the iPadOS XNU kernel](https://x.com/UTMapp/status/1708907045314035986). Contributions are welcome!
+本项目基于 [nfzerox/VirtualMacOniPad](https://github.com/nfzerox/VirtualMacOniPad) 和 [liukaixiang817/VirtualMacOniPad](https://github.com/liukaixiang817/VirtualMacOniPad)。感谢 [dsce](https://github.com/moraea/dsce)、[DyldExtractor](https://github.com/arandomdev/dyldextractor)、[MacWSBootingGuide](https://github.com/khanhduytran0/MacWSBootingGuide)、[HvDecompile](https://worthdoingbadly.com/hv/)、[UTM](https://github.com/utmapp/UTM)、[reims-vgpu](https://github.com/steelbrain/reims-vgpu)、[ipsw](https://github.com/blacktop/ipsw) 和 [VirtualBuddy](https://github.com/insidegui/VirtualBuddy) 等项目提供的研究和工具。
 
-### Does Virtual Mac on iPad work on iPhone?
-
-Even though iPad is the primary supported platform, Virtual Mac on iPad also works on iPhone 14 Pro and iPhone 14 Pro Max running iOS 16 up to iOS 16.3.1.
-
-### What kind of performance does Virtual Mac on iPad offer?
-
-Virtual Mac on iPad uses hardware CPU virtualization and supports paravirtualized graphics acceleration, providing excellent performance for everyday tasks. Because it uses an extracted and modified version of Apple's macOS virtualization stack, it provides roughly the same class of CPU and Metal performance as VirtualBuddy or UTM virtualizing macOS on an M1 or M2 Mac.
-
-With the latest update, Virtual Mac on iPad also goes beyond what VirtualBuddy and UTM offers, being first to ever support Final Cut Pro and OpenGL/OpenCL acceleration [through modified GLDRendererMetal](VirtualMac/vz/guest/OpenGLPVGCompat.m) in virtualized environments.
-
-### What if I encounter crashes, bugs, or other issues?
-
-First, open Sileo and update to the latest version of Virtual Mac. If the issue remains, try these fixes for common issues:
-- Virtual Mac does not support the Dopamine-roothide environment. To use Virtual Mac, remove the roothide jailbreak from Dopamine-roothide > Settings > Remove Jailbreak, then [switch to the official version of Dopamine](https://ios.cfw.guide/installing-dopamine-trollstore/).
-- If you see "[install-launcher failed: Permission denied](https://github.com/nfzerox/VirtualMacOniPad/issues/10)", update to the latest version of Virtual Mac. If the issue remains, open Filza and [follow this screenshot](VirtualMac/screenshots/troubleshooting/troubleshooting-permission.png), changing access permissions of `/var/root` to "Read, Execute" for "Others".
-- If you see "[Unexpected device state 'DFU' expected 'RestoreOS' (Probably forced into DFU mode externally)](https://github.com/nfzerox/VirtualMacOniPad/issues/11)", update to the latest version of Virtual Mac. If the issue remains, open Sileo > Packages, search for usbmuxd and [temporarily uninstall it](VirtualMac/screenshots/troubleshooting/troubleshooting-usbmuxd.png).
-- If you see "launcher cannot become root: Operation not permitted" or "Internal Virtualization error. The virtual machine failed to start", and have Choicy installed, open Settings > Choicy > Applications > Virtual Mac, and turn off "Disable Tweak Injection". You can also uninstall Choicy.
-- Virtual Mac may conflict with certain other tweaks. If problems remain, remove other tweaks one at a time to narrow down the conflict.
-
-[Open a GitHub issue](https://github.com/nfzerox/VirtualMacOniPad/issues?q=is%3Aissue) when you encounter a crash, bug, or other problem. Include clear reproduction steps, a screenshot or screen recording, and diagnostics file from Virtual Mac's in app Settings > Export Diagnostics.
-
-If you have access to Codex or Claude Code, install `openssh` and `lldb` in Sileo, then connect your iPad to a computer. Point the coding agent to this repository, then ask it to diagnose live and fix the issue. Because many issues can be setup-specific, this is usually the easiest way to fix issues. If you find a solution, please update the issue or open a pull request. Contributions are welcome!
-
-As a last resort, open Dopamine > Settings > Remove Jailbreak, then jailbreak again and reinstall Virtual Mac on iPad. If this still doesn't work, back up all data, open Dopamine > Settings > Remove Jailbreak, and erase your iPad in Settings > General > Transfer or Reset iPad > Erase All Content and Settings to start fresh.
-
-## Screenshots
-
-<p align="center">
-  <img src="VirtualMac/screenshots/VirtualMac_Library.png" alt="Virtual Mac grid library" width="49%">
-  <img src="VirtualMac/screenshots/VirtualMac_LibraryList.png" alt="Virtual Mac list library" width="49%">
-</p>
-<p align="center">
-  <img src="VirtualMac/screenshots/VirtualMac_Create.png" alt="Create a Virtual Mac" width="49%">
-  <img src="VirtualMac/screenshots/VirtualMac_Download.png" alt="Downloading macOS" width="49%">
-</p>
-<p align="center">
-  <img src="VirtualMac/screenshots/VirtualMac_Configuration.png" alt="Virtual Mac configuration" width="49%">
-  <img src="VirtualMac/screenshots/VirtualMac_macOS.png" alt="macOS running on iPad" width="49%">
-</p>
-
-## Technical Overview
-
-Creating Virtual Mac on iPad begins with extracting Hypervisor, Virtualization, ParavirtualizedGraphics, and supporting frameworks from macOS. Because dyld shared cache creation is a one way optimization process, extractions are lossy and can't be loaded directly.
-
-To fix this, [`uncache.py`](VirtualMac/vz/uncache.py) makes these extracted arm64e libraries loadable. It walks the cache's slide information, separates in image rebases from cross image binds, resolves their symbols and source images, lays out the Mach-O segments again, and emits new chained pointer fixups while preserving pointer authentication metadata.
-
-The pipeline then rebuilds GOT and authenticated GOT slots, rewrites cross segment PC relative references, repairs Objective-C selectors, protocols, relative method lists, and exports, adds a new chained fixups load command, [restamps the platform to iOS](VirtualMac/vz/stamp_ios.py), and [shims](VirtualMac/vz/host/NSViewShim.m) [many](VirtualMac/vz/host/metalshim.m) [missing](VirtualMac/vz/host/vmmhook.m) [API](VirtualMac/vz/host/vzxpchook.m) expected by these frameworks.
-
-To install macOS into the virtual machine, macOS normally connects to the virtual machine's DFU device through the AppleUSBUserHCI kernel service, which is absent from iPadOS. To bridge this gap, [`installation_usb_shim.m`](VirtualMac/vz/host/installation_usb_shim.m) reconstructs its controller path in userspace and forwards virtual USB endpoint traffic to the matching MobileDevice and usbmuxd components.
-
-## Credits
-
-This project would not be possible without years of prior research by talented developers. The culmination of the following community projects, combined with recent advances in agentic coding, made Virtual Mac on iPad possible:
-
-[dsce](https://github.com/moraea/dsce) proved that loadable x86_64 framework libraries could be extracted from the dyld shared cache. [DyldExtractor](https://github.com/arandomdev/dyldextractor) formed the basis of our [first ever loadable arm64e framework extractor](VirtualMac/vz/uncache.py). [MacWSBootingGuide](https://github.com/khanhduytran0/MacWSBootingGuide) and [iOS-run-macOS-executables-tools](https://worthdoingbadly.com/macappsios/) proved that macOS system frameworks could be restamped and patched to work on iPadOS.
-
-[HvDecompile](https://worthdoingbadly.com/hv/) and [UTM](https://github.com/utmapp/UTM) laid the groundwork for running Windows and Linux VMs with full Hypervisor performance on iPad, while [reims-vgpu](https://github.com/steelbrain/reims-vgpu) proved that accelerated macOS guests on a foreign host were possible with paravirtualized graphics acceleration. [ipsw](https://github.com/blacktop/ipsw) provides essential firmware and dyld shared cache analysis tools, and [VirtualBuddy](https://github.com/insidegui/VirtualBuddy) provides an invaluable reference for Apple's macOS virtualization and restore APIs.
+仓库源码采用 [MIT 许可](LICENSE)。从上游包提取的 Apple 框架不属于本仓库的 MIT 许可范围。
