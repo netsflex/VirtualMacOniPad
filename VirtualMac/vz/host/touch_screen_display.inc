@@ -31,14 +31,33 @@ static CFDictionaryRef touch_screen_dictionary_create(CFAllocatorRef allocator, 
             CFEqual(values[i], CFSTR("Virtual Touch Screen"));
     if (!isTouchScreen)
         return CFDictionaryCreate(allocator, keys, values, count, keyCallBacks, valueCallBacks);
-    const void *allKeys[kMaxEntries + 1], *allValues[kMaxEntries + 1];
+    enum { kExtra = 6 };
+    const void *allKeys[kMaxEntries + kExtra], *allValues[kMaxEntries + kExtra];
     memcpy(allKeys, keys, count * sizeof *keys);
     memcpy(allValues, values, count * sizeof *values);
+    CFIndex n = count;
     CFStringRef value = CFStringCreateWithCString(NULL, uuid, kCFStringEncodingUTF8);
-    allKeys[count] = CFSTR("displayUUID");
-    allValues[count] = value;
-    CFDictionaryRef result = CFDictionaryCreate(allocator, allKeys, allValues, count + 1, keyCallBacks, valueCallBacks);
-    CFRelease(value);
+    allKeys[n] = CFSTR("displayUUID");
+    allValues[n++] = value;
+    // EXPERIMENT: physical size of the surface, as a built-in digitizer reports it.
+    // Hard-coded to an 11-inch iPad's screen in landscape, in millimeters.
+    const double widthMM = 229.24, heightMM = 160.12;
+    int32_t widthFixed = (int32_t)(widthMM * 65536), heightFixed = (int32_t)(heightMM * 65536);
+    int32_t widthHundredths = (int32_t)(widthMM * 100), heightHundredths = (int32_t)(heightMM * 100);
+    CFNumberRef w = CFNumberCreate(NULL, kCFNumberSInt32Type, &widthFixed);
+    CFNumberRef h = CFNumberCreate(NULL, kCFNumberSInt32Type, &heightFixed);
+    CFNumberRef sw = CFNumberCreate(NULL, kCFNumberSInt32Type, &widthHundredths);
+    CFNumberRef sh = CFNumberCreate(NULL, kCFNumberSInt32Type, &heightHundredths);
+    const void *dimKeys[] = {CFSTR("Width"), CFSTR("Height")}, *dimValues[] = {w, h};
+    CFDictionaryRef dims = CFDictionaryCreate(NULL, dimKeys, dimValues, 2,
+        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    allKeys[n] = CFSTR("SurfaceDimensions"); allValues[n++] = dims;
+    allKeys[n] = CFSTR("Sensor Surface Width"); allValues[n++] = sw;
+    allKeys[n] = CFSTR("Sensor Surface Height"); allValues[n++] = sh;
+    allKeys[n] = CFSTR("Built-In"); allValues[n++] = kCFBooleanTrue;
+    allKeys[n] = CFSTR("MT Built-In"); allValues[n++] = kCFBooleanTrue;
+    CFDictionaryRef result = CFDictionaryCreate(allocator, allKeys, allValues, n, keyCallBacks, valueCallBacks);
+    CFRelease(value); CFRelease(dims); CFRelease(w); CFRelease(h); CFRelease(sw); CFRelease(sh);
     return result;
 }
 __attribute__((used)) static struct { const void *replacement, *replacee; }
