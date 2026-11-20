@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Package Virtual Mac 2 so that it no longer needs release 1.2.3 installed.
+"""Package Virtual Mac 2 with the shared components from upstream 1.2.4.
 
-The package takes over everything 1.2.3 supplied to Virtual Mac 2: the
+The package takes over everything the upstream package supplied to Virtual Mac 2: the
 installation helpers, the keyboard tweak and the rootless networking daemons.
-It conflicts with and replaces com.mac.virtual, so dpkg removes 1.2.3 when
+It conflicts with and replaces com.mac.virtual, so dpkg removes the upstream package when
 this package is installed. Only rootless iPadOS 16 is supported, so only the
 iPadOS 16 variants of the shared components are included.
 
 Inputs are local snapshots:
   --v2-tree       a copy of the installed Virtual Mac 2 files, rooted at /
-  --release-123   the unpacked data tree of the 1.2.3 package, rooted at /
+  --upstream-tree   the unpacked data tree of the 1.2.4 package, rooted at /
   --binaries      freshly built VirtualMac (unsigned), virtualmac-diagnostics,
-                  install-launcher, install-macos and VZHostCompat.dylib
+                  VirtualMacGuestTools.tar.gz, install-launcher, install-macos and VZHostCompat.dylib
                   (signed), with install-launcher and install-macos built with
                   -DVZ_RUNTIME_ROOT='"/var/root/VirtualMac2"', and optionally a
                   rebuilt VZKeyboardPassthrough.dylib and .plist
@@ -40,7 +40,7 @@ COMPILER_FILES = ("VM27CompilerCompat.dylib", "VM27GPUCompiler.dylib",
                   "VM27llvm-flatbuffers.dylib", "VM27llvm-lmdb.dylib",
                   "metal-library-convert", "vz-air-normalize",
                   "compiler-profile.json")
-# Shared files taken unchanged from 1.2.3, at the same installed paths. The
+# Shared files taken unchanged from 1.2.4, at the same installed paths. The
 # networking daemons resolve their libraries through @loader_path/../lib.
 SHARED_FILES = (
     "var/jb/Library/LaunchDaemons/com.apple.NetworkSharing.plist",
@@ -55,7 +55,7 @@ SHARED_FILES = (
     "var/root/VirtualMac/bootstrap-common/usr/lib/TweakInject/VZKeyboardPassthrough.dylib",
     "var/root/VirtualMac/bootstrap-common/usr/lib/TweakInject/VZKeyboardPassthrough.plist",
 )
-# Directories this package may have to create once 1.2.3 is removed. Their
+# Directories this package may have to create once the upstream package is removed. Their
 # parents belong to the jailbreak bootstrap and are not package data.
 OWNED_SYSTEM_DIRECTORIES = ("var/jb/Library/LaunchDaemons", "var/jb/basebin/LaunchDaemons")
 
@@ -116,10 +116,14 @@ def copy_tree(source, destination):
             raise ValueError(f"Unsupported package input node: {path}")
 
 
-def stage_app(source, binary, destination, version, build):
+def stage_app(source, binaries, destination, version, build):
     copy_tree(source, destination)
     shutil.rmtree(destination / "_CodeSignature")
-    copy_file(binary, destination / "VirtualMac", 0o755)
+    copy_file(binaries / "VirtualMac", destination / "VirtualMac", 0o755)
+    copy_file(binaries / "VirtualMacGuestTools.tar.gz",
+              destination / "GuestTools/VirtualMacGuestTools.tar.gz", 0o644)
+    for localization in (REPO / "resources/Localizations").glob("*.lproj/Localizable.strings"):
+        copy_file(localization, destination / localization.parent.name / localization.name, 0o644)
     info_path = destination / "Info.plist"
     info = plistlib.loads(info_path.read_bytes())
     if info.get("CFBundleIdentifier") != "com.mac.virtual.v2" or info.get("VirtualMacRuntimeRoot") != RUNTIME:
@@ -136,14 +140,14 @@ def stage_app(source, binary, destination, version, build):
             if isinstance(value, str):
                 localized[key] = value.replace(upstream, version)
         strings.write_bytes(plistlib.dumps(localized, fmt=plistlib.FMT_BINARY))
-    # Keep the installed app's entitlements, including platform-application, and
-    # add the HID client rights the Magic Trackpad relay needs to monitor events.
+    # Preserve the upstream rights and apply the fork's input and IPSW import rights.
     entitlements = destination.parent / "app-entitlements.plist"
     granted = plistlib.loads(run("codesign", "-d", "--entitlements", ":-", str(source),
                                  capture_output=True).stdout)
     fork = plistlib.loads((REPO / "vz/host/VirtualMac.entitlements").read_bytes())
     granted.update({key: value for key, value in fork.items()
-                    if key.startswith("com.apple.private.hid.client.")})
+                    if key.startswith("com.apple.private.hid.client.")
+                    or key == "com.apple.private.security.storage.AppDataContainers"})
     entitlements.write_bytes(plistlib.dumps(granted))
     run("codesign", "--force", "--sign", "-", "--timestamp=none", "--identifier",
         "com.mac.virtual.v2", "--entitlements", str(entitlements), str(destination))
@@ -157,11 +161,11 @@ def stage_app(source, binary, destination, version, build):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--v2-tree", type=Path, required=True)
-    parser.add_argument("--release-123", type=Path, required=True)
+    parser.add_argument("--upstream-tree", type=Path, required=True)
     parser.add_argument("--binaries", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--release-version", default="2.2.0beta1")
-    parser.add_argument("--build-number", default="1004")
+    parser.add_argument("--release-version", default="2.2.0beta2")
+    parser.add_argument("--build-number", default="1005")
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9][A-Za-z0-9.+-]*", args.release_version) or not re.fullmatch(r"[0-9]+", args.build_number):
         parser.error("Expected a safe release version and numeric build number")
@@ -178,7 +182,7 @@ def main():
         runtime, app = stage / RUNTIME[1:], stage / APP_PATH[1:]
         runtime.mkdir(parents=True)
         app.parent.mkdir(parents=True)
-        stage_app(args.v2_tree / APP_PATH[1:], args.binaries / "VirtualMac", app,
+        stage_app(args.v2_tree / APP_PATH[1:], args.binaries, app,
                   args.release_version, args.build_number)
         for name in ("payload", "testing"):
             copy_tree(v2_runtime / name, runtime / name)
@@ -203,13 +207,13 @@ def main():
         copy_file(args.binaries / "virtualmac-diagnostics", stage / "var/jb/usr/bin/virtualmac-diagnostics", 0o755)
         for relative in SHARED_FILES:
             destination = relative.replace("var/root/VirtualMac/", RUNTIME[1:] + "/")
-            # A rebuilt keyboard tweak in --binaries replaces 1.2.3's copy.
+            # A rebuilt keyboard tweak in --binaries replaces the upstream copy.
             origin = args.binaries / Path(relative).name
             if "/TweakInject/" not in relative or not origin.is_file():
-                origin = args.release_123 / relative
+                origin = args.upstream_tree / relative
             copy_file(origin, stage / destination)
         # iPadOS 16 uses the .ipados16 network sharing daemon.
-        copy_file(args.release_123 / "var/jb/usr/libexec/InternetSharing.ipados16",
+        copy_file(args.upstream_tree / "var/jb/usr/libexec/InternetSharing.ipados16",
                   stage / "var/jb/usr/libexec/InternetSharing", 0o755)
         for relative in OWNED_SYSTEM_DIRECTORIES:
             (stage / relative).mkdir(parents=True, exist_ok=True)

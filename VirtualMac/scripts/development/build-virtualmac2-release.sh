@@ -1,19 +1,19 @@
 #!/bin/bash
 # Build the standalone Virtual Mac 2 package from this repository and the two
 # published upstream packages:
-#   VirtualMac_1.2.3.deb            (networking daemons and their libraries)
+#   VirtualMac_1.2.4.deb            (networking daemons and their libraries)
 #   VirtualMac_2.0.0beta1_1001.deb  (Apple frameworks, GPU task, compiler,
 #                                    shader cache and app resources)
 # Every file this fork changes or adds is compiled here from source; all other
 # files are taken unchanged from the upstream packages. Requires Xcode and ldid.
 set -euo pipefail
 if [[ $# -lt 3 ]]; then
-    echo "Usage: $0 <VirtualMac_1.2.3.deb> <VirtualMac_2.0.0beta1_1001.deb> <output-directory> [--build-number N]" >&2
+    echo "Usage: $0 <VirtualMac_1.2.4.deb> <VirtualMac_2.0.0beta1_1001.deb> <output-directory> [--build-number N]" >&2
     exit 2
 fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-RELEASE_123="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+UPSTREAM_RELEASE="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
 RELEASE_V2="$(cd "$(dirname "$2")" && pwd)/$(basename "$2")"
 mkdir -p "$3"
 OUTPUT="$(cd "$3" && pwd)"
@@ -21,10 +21,10 @@ shift 3
 package_options=()
 [[ $# -eq 0 ]] || package_options=("$@")
 
-RELEASE_123_SHA256=435ce1dc76b9e18b1547c77b84e2cf33ffe40a16be63e366f181d14709a41aa0
+UPSTREAM_RELEASE_SHA256=d8765adda6257fa7712aeae126c7992c952f151519375b0224520ecfea50a078
 RELEASE_V2_SHA256=853d6a92ead26f0e8cf001d0302f9211db5a676d5260ff4a45e18309e8800ed0
-[[ "$(shasum -a 256 "$RELEASE_123" | cut -d ' ' -f1)" == "$RELEASE_123_SHA256" ]] || {
-    echo "Not the published VirtualMac_1.2.3.deb" >&2; exit 1; }
+[[ "$(shasum -a 256 "$UPSTREAM_RELEASE" | cut -d ' ' -f1)" == "$UPSTREAM_RELEASE_SHA256" ]] || {
+    echo "Not the published VirtualMac_1.2.4.deb" >&2; exit 1; }
 [[ "$(shasum -a 256 "$RELEASE_V2" | cut -d ' ' -f1)" == "$RELEASE_V2_SHA256" ]] || {
     echo "Not the published VirtualMac_2.0.0beta1_1001.deb" >&2; exit 1; }
 
@@ -50,7 +50,7 @@ PY
     tar -xf "$WORK/members/data.tar" -C "$2"
     rm -rf "$WORK/members"
 }
-unpack "$RELEASE_123" "$WORK/release-123"
+unpack "$UPSTREAM_RELEASE" "$WORK/upstream-tree"
 unpack "$RELEASE_V2" "$WORK/v2"
 V2_RUNTIME="$WORK/v2/var/root/VirtualMac2"
 V2_APP="$WORK/v2/var/jb/Applications/VirtualMac2.app"
@@ -61,6 +61,11 @@ INSTALL="$REPO_ROOT/vz/install"
 HOST_ENTS="$HOST/VirtualMac.entitlements"
 BIN="$WORK/binaries"
 mkdir -p "$BIN"
+
+python3 "$REPO_ROOT/scripts/validate-localizations.py"
+VZ_IGNORE_ENV_FILE=1 VZ_BUILD_ROOT="$WORK/guest-build" VZ_GUEST_TOOLS_BUILD="$BIN" \
+    VZ_OPENGL_GUEST_BUILD="$WORK/guest-build/guest-opengl" \
+    bash "$REPO_ROOT/scripts/build-guest-tools.sh"
 
 # Application and diagnostics, as scripts/build-ipad-app.sh compiles them.
 xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=16.1 -isysroot "$SDK" -fblocks \
@@ -138,5 +143,5 @@ bash "$SCRIPT_DIR/build-air-normalize.sh" "$WORK/normalizer" >/dev/null
 cp "$WORK/normalizer/vz-air-normalize" "$COMPILER/vz-air-normalize"
 
 python3 "$SCRIPT_DIR/build-virtualmac2-standalone-deb.py" --v2-tree "$WORK/v2" \
-    --release-123 "$WORK/release-123" --binaries "$BIN" --output "$OUTPUT" \
+    --upstream-tree "$WORK/upstream-tree" --binaries "$BIN" --output "$OUTPUT" \
     ${package_options[@]+"${package_options[@]}"}
